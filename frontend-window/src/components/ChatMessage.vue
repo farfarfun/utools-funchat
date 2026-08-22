@@ -2,7 +2,7 @@
 import { computed, ref, nextTick } from 'vue';
 import { Bubble, Thinking, XMarkdown } from 'vue-element-plus-x';
 import { ElTooltip, ElButton, ElInput, ElCollapse, ElCollapseItem, ElIcon, ElCheckbox, ElTag, ElMessage } from 'element-plus';
-import { DocumentCopy, Refresh, Delete, Document, CaretTop, CaretBottom, Edit, Check, Close, CloseBold, Picture } from '@element-plus/icons-vue';
+import { DocumentCopy, Refresh, Delete, Document, CaretTop, CaretBottom, Edit, Check, Close, CloseBold, Picture, UserFilled, ChatDotRound } from '@element-plus/icons-vue';
 import 'katex/dist/katex.min.css';
 import DOMPurify from 'dompurify';
 import html2canvas from 'html2canvas';
@@ -499,8 +499,11 @@ const truncateFilename = (filename, maxLength = 30) => {
     <div v-if="message.role === 'user'" class="message-wrapper user-wrapper" ref="messageWrapperRef">
       <div class="message-meta-header user-meta-header">
         <span class="timestamp" v-if="message.timestamp">{{ formatTimestamp(message.timestamp) }}</span>
-        <img :src="userAvatar" alt="User Avatar" @click="onAvatarClick('user', $event)"
-          class="chat-avatar-top user-avatar">
+        <button type="button" class="chat-avatar-top user-avatar" aria-label="更换用户头像"
+          @click="onAvatarClick('user', $event)">
+          <img v-if="userAvatar" :src="userAvatar" alt="" class="avatar-image">
+          <el-icon v-else class="avatar-fallback"><UserFilled /></el-icon>
+        </button>
       </div>
 
       <Bubble class="user-bubble" placement="end" shape="corner" maxWidth="100%">
@@ -552,8 +555,11 @@ const truncateFilename = (filename, maxLength = 30) => {
     <!-- AI 消息 -->
     <div v-if="message.role === 'assistant'" class="message-wrapper ai-wrapper" ref="messageWrapperRef">
       <div class="message-meta-header ai-meta-header">
-        <img :src="aiAvatar" alt="AI Avatar" @click="onAvatarClick('assistant', $event)"
-          class="chat-avatar-top ai-avatar">
+        <button type="button" class="chat-avatar-top ai-avatar" aria-label="更换助手头像"
+          @click="onAvatarClick('assistant', $event)">
+          <img v-if="aiAvatar" :src="aiAvatar" alt="" class="avatar-image">
+          <el-icon v-else class="avatar-fallback"><ChatDotRound /></el-icon>
+        </button>
         <div class="meta-info-column">
           <div class="meta-name-row">
             <span class="ai-name">{{ message.aiName }}</span>
@@ -676,32 +682,30 @@ const truncateFilename = (filename, maxLength = 30) => {
 <style scoped lang="less">
 /* 使用与原文件相同的样式 */
 .chat-message {
-  margin: 15px 0 0 0;
+  margin: 0;
+  padding: 0 0 30px;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
-  padding: 0px;
-  --bubble-radius: 12px;
+  --bubble-radius: 8px;
 }
 
 .message-wrapper {
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  display: grid;
+  align-items: start;
+  column-gap: 12px;
 }
 
 .user-wrapper {
-  align-self: flex-end;
-  align-items: flex-end;
-  max-width: 90%;
-  margin-right: 4%;
-  margin-left: 5%;
+  grid-template-columns: minmax(0, 1fr) 26px;
+  max-width: 100%;
+  margin: 0;
 }
 
 .ai-wrapper {
-  align-self: flex-start;
-  align-items: flex-start;
-  margin-left: 5%;
-  margin-right: 5%;
+  grid-template-columns: 26px minmax(0, 1fr);
+  margin: 0;
   max-width: 100%;
 }
 
@@ -715,17 +719,16 @@ const truncateFilename = (filename, maxLength = 30) => {
 }
 
 .user-meta-header {
-  flex-direction: row;
-  margin-bottom: 8px;
+  display: contents;
 }
 
 .ai-meta-header {
-  flex-direction: row;
-  align-items: center;
-  margin-bottom: 4px;
+  display: contents;
 }
 
 .meta-info-column {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -740,48 +743,66 @@ const truncateFilename = (filename, maxLength = 30) => {
 }
 
 .timestamp-row {
-  font-size: 11px;
-  color: var(--el-text-color-primary);
-  margin-top: 2px;
+  display: none;
 }
 
 .chat-avatar-top {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   cursor: pointer;
-  object-fit: cover;
-  transition: transform 0.2s;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-2);
+  color: rgb(var(--primary-6));
+  background: var(--color-bg-5);
+}
 
-  &:hover {
-    transform: scale(1.1);
-  }
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-fallback {
+  font-size: 16px;
 }
 
 .user-avatar {
+  grid-column: 2;
+  grid-row: 1 / span 2;
   border-radius: 50%;
 }
 
 .ai-avatar {
-  border-radius: 6px;
-  margin-right: 10px;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  border-radius: 50%;
+  margin: 0;
 }
 .ai-name {
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--el-text-color-primary);
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .chat-message .user-bubble {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  margin-left: 1.75rem;
+
   :deep(.el-bubble-content-wrapper .el-bubble-content) {
-    border-radius: var(--bubble-radius);
+    border-radius: 16px 3px 16px 16px;
     background-color: var(--el-bg-color-userbubble);
-    padding-top: 10px;
-    padding-bottom: 10px;
-    margin-bottom: 0px;
-    padding-right: 14px;
+    padding: 10px 16px;
+    margin-bottom: 0;
   }
 
   :deep(.el-bubble-content-wrapper .el-bubble-footer) {
@@ -791,19 +812,21 @@ const truncateFilename = (filename, maxLength = 30) => {
 
 html.dark .chat-message .user-bubble {
   :deep(.el-bubble-content-wrapper .el-bubble-content) {
-    background: #393939;
-    border: #383838 0px solid;
+    background: var(--color-primary-light-1);
+    border: 0;
   }
 }
 
 .chat-message .ai-bubble {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  margin-right: 1.75rem;
+
   :deep(.el-bubble-content-wrapper .el-bubble-content) {
-    border-radius: var(--bubble-radius);
-    background-color: transparent;
-    padding-left: 4px;
-    padding-right: 0px;
-    padding-bottom: 2px;
-    padding-top: 4px;
+    border-radius: 3px 16px 16px;
+    background-color: var(--color-bg-5);
+    padding: 10px 16px;
   }
 
   :deep(.el-bubble-content-wrapper .el-bubble-footer) {
@@ -819,7 +842,7 @@ html.dark .chat-message .user-bubble {
 
 html.dark .chat-message .ai-bubble {
   :deep(.el-bubble-content-wrapper .el-bubble-content) {
-    background: var(--el-bg-color);
+    background: var(--color-bg-5);
   }
 }
 
@@ -834,9 +857,9 @@ html.dark .chat-message .ai-bubble {
     padding: 0;
     color: var(--text-primary);
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.8;
     tab-size: 4;
-    font-family: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "noto sans", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
     word-break: break-word;
   }
 
@@ -898,7 +921,7 @@ html.dark .chat-message .ai-bubble {
     }
 
     &::-webkit-media-controls-panel {
-      background-color: var(--bg-tertiary, #F0F0F0);
+      background-color: var(--color-fill-2);
       border-radius: 24px;
       padding: 0 10px 0 10px;
       justify-content: center;
@@ -966,7 +989,7 @@ html.dark .chat-message .ai-bubble {
     accent-color: var(--text-primary);
 
     &::-webkit-media-controls-panel {
-      background-color: var(--bg-tertiary, #2c2e33);
+      background-color: var(--color-bg-5);
     }
 
     &::-webkit-media-controls-play-button,
@@ -1017,7 +1040,7 @@ html.dark .chat-message .ai-bubble {
     margin-top: 0.5em;
     margin-bottom: 0.8em;
     padding-bottom: 0.3em;
-    border-bottom: 1px solid #d0d7de;
+    border-bottom: 1px solid var(--color-border-2);
   }
 
   :deep(h1) {
@@ -1042,20 +1065,20 @@ html.dark .chat-message .ai-bubble {
 
   :deep(h6) {
     font-size: 0.9em;
-    color: #656d76;
+    color: var(--color-text-3);
   }
 
   :deep(blockquote) {
     margin: 1em 0;
     padding: 0.5em 1em;
-    border-left: 4px solid #b3b3b3;
-    background-color: rgba(0, 0, 0, 0.035) !important;
+    border-left: 4px solid rgb(var(--primary-3));
+    background-color: var(--color-fill-1) !important;
     color: var(--el-text-color-secondary);
     border-radius: 0 8px 8px 0;
 
     html.dark & {
-      border-left-color: #656565;
-      background-color: rgba(255, 255, 255, 0.05) !important;
+      border-left-color: rgb(var(--primary-5));
+      background-color: var(--color-fill-1) !important;
     }
   }
 
@@ -1077,11 +1100,11 @@ html.dark .chat-message .ai-bubble {
     padding: 0.2em 0.4em;
     margin: 0;
     border-radius: 4px;
-    background-color: rgba(175, 184, 193, 0.2);
+    background-color: var(--color-fill-2);
   }
 
   html:not(.dark) & :deep(pre.shiki) {
-    background-color: #f6f8fa !important;
+    background-color: var(--color-fill-1) !important;
   }
 
   html.dark & {
@@ -1091,15 +1114,15 @@ html.dark .chat-message .ai-bubble {
     :deep(h3),
     :deep(h4),
     :deep(h5) {
-      border-bottom-color: #373A40;
+      border-bottom-color: var(--color-border-2);
     }
 
     :deep(h6) {
-      color: #8b949e;
+      color: var(--color-text-3);
     }
 
     :deep(hr) {
-      background-color: #373A40 !important;
+      background-color: var(--color-border-2) !important;
       margin-top: 8px;
       margin-bottom: 8px;
     }
@@ -1132,31 +1155,31 @@ html.dark .chat-message .ai-bubble {
     }
 
     :deep(th) {
-      background-color: #2c2e33;
+      background-color: var(--color-bg-4);
       min-width: 60px;
     }
 
     :deep(tr) {
-      background-color: #212327;
-      border-top: 1px solid #373A40;
+      background-color: var(--color-bg-2);
+      border-top: 1px solid var(--color-border-2);
     }
 
     :deep(tr:nth-child(2n)) {
-      background-color: #25272b;
+      background-color: var(--color-bg-3);
     }
 
     :deep(td) {
-      border-color: #373A40;
+      border-color: var(--color-border-2);
       min-width: 60px;
     }
 
     :deep(.pre-md) {
-      border: 0px solid #373A40;
+      border: 0;
     }
 
     :deep(.inline-code-tag) {
-      background-color: rgba(110, 118, 129, 0.4);
-      color: #c9d1d9;
+      background-color: var(--color-fill-4);
+      color: var(--color-text-1);
     }
   }
 
@@ -1169,7 +1192,7 @@ html.dark .chat-message .ai-bubble {
     box-sizing: border-box;
 
     .mermaid-content {
-      background-color: rgba(245, 245, 245, 0.5);
+      background-color: var(--color-fill-1);
       border-bottom-left-radius: 8px;
       border-bottom-right-radius: 8px;
     }
@@ -1187,18 +1210,18 @@ html.dark .chat-message .ai-bubble {
       border-top-right-radius: 8px;
 
       html.dark & {
-        background-color: rgba(39, 39, 39, 1);
+        background-color: var(--color-bg-5);
 
         .el-tabs__nav {
-          background-color: #2c2e33;
+          background-color: var(--color-bg-4);
         }
 
         .el-tabs__item.is-active {
-          color: #202123 !important;
+          color: var(--color-text-1) !important;
         }
 
         .el-tabs__item:hover {
-          color: #202123 !important;
+          color: var(--color-text-1) !important;
         }
       }
     }
@@ -1207,7 +1230,7 @@ html.dark .chat-message .ai-bubble {
       border: hidden;
       border-top-left-radius: 0px;
       border-top-right-radius: 0px;
-      background-color: rgba(248, 249, 250, 0.5);
+      background-color: var(--color-fill-1);
       padding-bottom: 0px;
 
       &::-webkit-scrollbar {
@@ -1220,7 +1243,7 @@ html.dark .chat-message .ai-bubble {
       }
 
       &::-webkit-scrollbar-thumb {
-        background-color: var(--el-border-color-darker, #4C4D4F);
+        background-color: var(--color-border-4);
         border-radius: 4px;
       }
 
@@ -1233,7 +1256,7 @@ html.dark .chat-message .ai-bubble {
       }
 
       html.dark & {
-        background-color: rgba(23, 23, 23, 0.5);
+        background-color: var(--color-bg-1);
         color: var(--el-text-color-primary);
       }
     }
@@ -1256,7 +1279,7 @@ html.dark .chat-message .ai-bubble {
     margin-bottom: 8px;
 
     :deep(.el-textarea__inner) {
-      background-color: #ECECEC;
+      background-color: var(--color-bg-2);
       box-shadow: none !important;
       border: 1px solid var(--el-border-color-light);
       color: var(--el-text-color-primary);
@@ -1273,23 +1296,23 @@ html.dark .chat-message .ai-bubble {
     }
 
     :deep(.el-textarea__inner::-webkit-scrollbar-thumb) {
-      background: var(--el-text-color-disabled, #c0c4cc);
+      background: var(--color-text-4);
       border-radius: 4px;
       border: 2px solid transparent;
       background-clip: content-box;
     }
 
     :deep(.el-textarea__inner::-webkit-scrollbar-thumb:hover) {
-      background: var(--el-text-color-secondary, #909399);
+      background: var(--color-text-3);
       background-clip: content-box;
     }
 
     html.dark & :deep(.el-textarea__inner::-webkit-scrollbar-thumb) {
-      background: #6b6b6b;
+      background: var(--color-border-4);
     }
 
     html.dark & :deep(.el-textarea__inner::-webkit-scrollbar-thumb:hover) {
-      background: #999;
+      background: var(--color-text-3);
     }
   }
 
@@ -1299,14 +1322,14 @@ html.dark .chat-message .ai-bubble {
     gap: 8px;
 
     .el-button--primary {
-      --el-button-bg-color: var(--bg-accent);
-      --el-button-border-color: var(--bg-accent);
+      --el-button-bg-color: rgb(var(--primary-6));
+      --el-button-border-color: rgb(var(--primary-6));
       --el-button-text-color: var(--text-on-accent);
     }
 
     .el-button--primary:hover {
-      --el-button-hover-bg-color: var(--bg-accent-light);
-      --el-button-hover-border-color: var(--bg-accent-light);
+      --el-button-hover-bg-color: rgb(var(--primary-5));
+      --el-button-hover-border-color: rgb(var(--primary-5));
     }
   }
 
@@ -1320,14 +1343,14 @@ html.dark .chat-message .ai-bubble {
 
 html.dark .editing-wrapper {
   .el-textarea :deep(.el-textarea__inner) {
-    background-color: #424242;
-    border-color: var(--border-primary);
+    background-color: var(--color-bg-4);
+    border-color: var(--color-border-2);
     color: var(--text-primary);
   }
 
   .editing-actions .el-button--primary {
-    --el-button-hover-bg-color: #e0e0e0;
-    --el-button-hover-border-color: #e0e0e0;
+    --el-button-hover-bg-color: rgb(var(--primary-5));
+    --el-button-hover-border-color: rgb(var(--primary-5));
   }
 }
 
@@ -1351,14 +1374,14 @@ html.dark .editing-wrapper {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--el-text-color-disabled, #c0c4cc);
+    background: var(--color-text-4);
     border-radius: 4px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--el-text-color-secondary, #909399);
+    background: var(--color-text-3);
     background-clip: content-box;
   }
 
@@ -1384,14 +1407,14 @@ html.dark .message-files-vertical-list {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: #6b6b6b;
+    background: var(--color-border-4);
     border-radius: 4px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: #999;
+    background: var(--color-text-3);
   }
 
   .file-button {
@@ -1430,6 +1453,13 @@ html.dark .ai-name {
   align-items: center;
   width: 100%;
   margin-top: 8px;
+  opacity: 0;
+  transition: opacity .3s;
+}
+
+.chat-message:hover .message-footer,
+.chat-message:focus-within .message-footer {
+  opacity: 1;
 }
 
 .footer-actions {
@@ -1454,8 +1484,12 @@ html.dark .ai-name {
 }
 
 .timestamp {
-  margin-top: 12px;
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0 0 3px;
   font-size: 0.75rem;
+  color: var(--color-text-3);
+  text-align: right;
   opacity: 0.8;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1463,24 +1497,24 @@ html.dark .ai-name {
 
 html.dark .ai-bubble :deep(.el-thinking .trigger) {
   border-radius: var(--bubble-radius) !important;
-  background-color: var(--el-fill-color-darker, #2c2e33);
-  color: var(--el-text-color-primary, #F9FAFB);
-  border-color: var(--el-border-color-dark, #373A40);
+  background-color: var(--color-fill-4);
+  color: var(--color-text-1);
+  border-color: var(--color-border-2);
 }
 
 html.dark .ai-bubble :deep(.el-thinking .el-icon) {
-  color: var(--el-text-color-secondary, #A0A5B1);
+  color: var(--color-text-3);
 }
 
 html.dark .ai-bubble :deep(.el-thinking-popper) {
   max-width: 85vw;
-  background-color: var(--bg-tertiary, #2c2e33) !important;
-  border-color: var(--border-primary, #373A40) !important;
+  background-color: var(--color-bg-5) !important;
+  border-color: var(--color-border-2) !important;
 }
 
 html.dark .ai-bubble :deep(.el-thinking-popper .el-popper__arrow::before) {
-  background: var(--bg-tertiary, #2c2e33) !important;
-  border-color: var(--border-primary, #373A40) !important;
+  background: var(--color-bg-5) !important;
+  border-color: var(--color-border-2) !important;
 }
 
 .ai-bubble :deep(.el-thinking .content pre) {
@@ -1494,8 +1528,8 @@ html.dark .ai-bubble :deep(.el-thinking-popper .el-popper__arrow::before) {
 
 html.dark .ai-bubble :deep(.el-thinking .content pre) {
   background-color: var(--el-fill-color-darker);
-  color: var(--el-text-color-regular, #E5E7EB);
-  border: 1px solid var(--border-primary, #373A40);
+  color: var(--color-text-2);
+  border: 1px solid var(--color-border-2);
 }
 
 .tool-calls-container {
@@ -1594,11 +1628,11 @@ html.dark .ai-bubble :deep(.el-thinking .content pre) {
 }
 
 html.dark .stop-btn-wrapper {
-  background-color: #E5EAF3;
-  color: #141414;
+  background-color: var(--color-text-1);
+  color: var(--color-bg-1);
 
   &:hover {
-    background-color: #ffffff;
+    background-color: rgb(var(--primary-2));
   }
 }
 
@@ -1693,14 +1727,14 @@ html.dark .stop-btn-wrapper {
 }
 
 .tool-call-details .tool-detail-section pre::-webkit-scrollbar-thumb {
-  background: var(--el-text-color-disabled, #c0c4cc);
+  background: var(--color-text-4);
   border-radius: 4px;
   border: 2px solid var(--el-fill-color-light);
   background-clip: content-box;
 }
 
 .tool-call-details .tool-detail-section pre::-webkit-scrollbar-thumb:hover {
-  background: var(--el-text-color-secondary, #909399);
+  background: var(--color-text-3);
   background-clip: content-box;
 }
 
@@ -1725,8 +1759,8 @@ html.dark .tool-collapse {
 }
 
 html.dark .stop-btn-wrapper:hover {
-  background-color: rgba(245, 108, 108, 0.2);
-  color: #F56C6C;
+  background-color: var(--color-danger-light-1);
+  color: rgb(var(--danger-6));
 }
 
 html.dark .tool-approval-actions {
@@ -1742,12 +1776,12 @@ html.dark .tool-call-details {
 }
 
 html.dark .tool-call-details .tool-detail-section pre::-webkit-scrollbar-thumb {
-  background: #6b6b6b;
+  background: var(--color-border-4);
   border-color: var(--el-fill-color-darker);
 }
 
 html.dark .tool-call-details .tool-detail-section pre::-webkit-scrollbar-thumb:hover {
-  background: #999;
+  background: var(--color-text-3);
 }
 
 :deep(.markdown-wrapper) {
@@ -1766,12 +1800,12 @@ html.dark .tool-call-details .tool-detail-section pre::-webkit-scrollbar-thumb:h
       border: 1px solid transparent;
 
       &:hover {
-        background-color: rgba(0, 0, 0, 0.08);
-        border-color: rgba(0, 0, 0, 0.12);
+        background-color: var(--color-fill-2);
+        border-color: var(--color-border-2);
       }
 
       &:active {
-        background-color: var(--el-color-primary-light-10) !important;
+        background-color: var(--color-primary-light-1) !important;
         transform: scale(0.98);
       }
     }

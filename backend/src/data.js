@@ -1184,7 +1184,7 @@ async function openFastInputWindow(config, msg) {
     }
   };
 
-  const entryPath = "./fast_window/fast_input.html";
+  const entryPath = "./fast-window/fast_input.html";
 
   const fastWindow = utools.createBrowserWindow(
     entryPath,

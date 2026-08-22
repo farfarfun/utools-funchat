@@ -8,20 +8,20 @@ pnpm-debug.log*
 lerna-debug.log*
 
 
-frontend_window/node_modules
-frontend_window/dist
-frontend_window/public
+frontend-window/node_modules
+frontend-window/dist
+frontend-window/public
 
-frontend_main/node_modules
-frontend_main/dist
-frontend_main/public
+frontend-main/node_modules
+frontend-main/dist
+frontend-main/public
 
 backend/node_modules
 backend/public
 
 utools/main
 utools/window
-utools/fast_window
+utools/fast-window
 .DS_Store
 dist
 dist-ssr
@@ -54,12 +54,12 @@ ToDoList.md
 
 
 utools/window/*
-utools/fast_window/*
+utools/fast-window/*
 utools/main/*
 utools/preload.js
 utools/window_preload.js
 utools/fast_window_preload.js
 
 !utools/window/.gitkeep
-!utools/fast_window/.gitkeep
+!utools/fast-window/.gitkeep
 !utools/main/.gitkeep

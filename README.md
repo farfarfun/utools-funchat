@@ -131,9 +131,9 @@ Funchat 是一款为 **uTools** 打造的深度定制化 AI 助手插件。它�
 ```text
 Funchat/
 ├── backend/            # 后端逻辑 (Node.js)，处理文件读写、MCP连接、Preload脚本
-├── frontend_main/      # 主界面前端 (Vue 3 + Element Plus)，用于设置、管理配置
-├── frontend_window/    # 独立对话窗口前端 (Vue 3 + Element Plus)，核心交互区
-├── Fast_window/        # 快捷输入条前端 (原生 HTML/JS)，轻量级交互
+├── frontend-main/      # 主界面前端 (Vue 3 + Element Plus)，用于设置、管理配置
+├── frontend-window/    # 独立对话窗口前端 (Vue 3 + Element Plus)，核心交互区
+├── fast-window/        # 快捷输入条前端 (原生 HTML/JS)，轻量级交互
 ├── docs/               # 项目文档
 ├── build/              # 构建脚本与资源
 ├── plugin.json         # uTools 插件入口配置
@@ -153,17 +153,17 @@ Funchat/
 2. **安装依赖并构建前端**
    Funchat 由三个独立的前端项目组成，需要分别构建：
 
-   * **主界面 (frontend_main)**
+   * **主界面 (frontend-main)**
 
      ```bash
-     cd frontend_main
+     cd frontend-main
      pnpm install && pnpm build
      cd ..
      ```
-   * **对话窗口 (frontend_window)**
+   * **对话窗口 (frontend-window)**
 
      ```bash
-     cd frontend_window
+     cd frontend-window
      pnpm install && pnpm build
      cd ..
      ```

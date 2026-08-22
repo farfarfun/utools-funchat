@@ -2,10 +2,9 @@
 import { ref, onMounted, onBeforeUnmount, nextTick, watch, h, computed, defineAsyncComponent } from 'vue';
 import { ElContainer, ElMain, ElDialog, ElImageViewer, ElMessage, ElMessageBox, ElInput, ElButton, ElCheckbox, ElButtonGroup, ElTag, ElTooltip, ElIcon, ElAvatar, ElSwitch } from 'element-plus';
 import { createClient } from "webdav/web";
-import { DocumentCopy, QuestionFilled, Download, Search, Tools, CaretRight, Collection, Warning, Cpu, ArrowUp, ArrowDown, Refresh } from '@element-plus/icons-vue';
+import { DocumentCopy, QuestionFilled, Download, Search, Tools, CaretRight, Collection, Warning, Cpu, Refresh } from '@element-plus/icons-vue';
 
-import TitleBar from './components/TitleBar.vue';
-import ChatHeader from './components/ChatHeader.vue';
+import AgentSidebar from './components/AgentSidebar.vue';
 const ChatMessage = defineAsyncComponent(() => import('./components/ChatMessage.vue'));
 import ChatInput from './components/ChatInput.vue';
 import ModelSelectionDialog from './components/ModelSelectionDialog.vue';
@@ -15,7 +14,7 @@ import { marked } from 'marked';
 import html2canvas from 'html2canvas';
 
 import TextSearchUI from './utils/TextSearchUI.js';
-import { formatTimestamp, sanitizeToolArgs } from './utils/formatters.js';
+import { buildFilename, escapeHtml, formatMessageText, formatTimestamp, sanitizeToolArgs, withSessionMetadata } from './utils/formatters.js';
 
 const showDismissibleMessage = (options) => {
   const opts = typeof options === 'string' ? { message: options } : options;
@@ -51,10 +50,7 @@ const lastSelectionStart = ref(null);
 const lastSelectionEnd = ref(null);
 const chatContainerRef = ref(null);
 const isAtBottom = ref(true);
-const showScrollToBottomButton = ref(false);
-const isForcingScroll = ref(false);
 const messageRefs = new Map();
-const focusedMessageIndex = ref(null);
 
 // 核心状态：是否粘滞在底部
 const isSticky = ref(true);
@@ -82,9 +78,9 @@ if (isDarkInit) {
 }
 
 const defaultConfig = window.api.defaultConfig;
-const UserAvart = ref("user.png");
-const AIAvart = ref("ai.svg");
-const favicon = ref("favicon.png");
+const UserAvart = ref("");
+const AIAvart = ref("");
+const favicon = ref("");
 const CODE = ref("");
 
 const isInit = ref(false);
@@ -95,6 +91,89 @@ if (isDarkInit) {
   initialConfigData.isDarkMode = true;
 }
 const currentConfig = ref(initialConfigData);
+const localChatFiles = ref([]);
+const sidebarBusy = ref(false);
+let initializeWindow = null;
+
+const enabledAgents = computed(() => Object.entries(currentConfig.value?.prompts || {})
+  .filter(([, config]) => config?.enable !== false)
+  .map(([code, config]) => ({ code, icon: config.icon || '', model: config.model || '' })));
+
+const currentAgentHistories = computed(() => localChatFiles.value.filter(file =>
+  file.isChatSession && file.agentCode === CODE.value
+));
+
+const refreshLocalChatFiles = async () => {
+  const localPath = currentConfig.value?.webdav?.localChatPath;
+  if (!localPath) {
+    localChatFiles.value = [];
+    return;
+  }
+  try {
+    const files = await window.api.listJsonFiles(localPath);
+    // ponytail: session JSON has no indexed Agent field; add a sidecar index only if this scan becomes slow.
+    localChatFiles.value = await withSessionMetadata(files, window.api.readLocalFile);
+  } catch (error) {
+    console.warn('读取本地会话列表失败:', error);
+    localChatFiles.value = [];
+  }
+};
+
+const startNewChat = async (code = CODE.value) => {
+  if (!initializeWindow || loading.value || sidebarBusy.value) return;
+  sidebarBusy.value = true;
+  try {
+    await autoSaveSession();
+    window.removeEventListener('blur', closePage);
+    await window.api.closeMcpClient();
+    sessionMcpServerIds.value = [];
+    tempSessionMcpServerIds.value = [];
+    openaiFormattedTools.value = [];
+    prompt.value = '';
+    fileList.value = [];
+    defaultConversationName.value = '';
+    await initializeWindow({ os: currentOS.value, code });
+  } catch (error) {
+    showDismissibleMessage.error(`切换 Agent 失败: ${error.message}`);
+  } finally {
+    sidebarBusy.value = false;
+  }
+};
+
+const handleSelectAgent = code => {
+  if (code !== CODE.value) return startNewChat(code);
+};
+
+const handleLoadHistory = async file => {
+  if (loading.value || sidebarBusy.value) return;
+  sidebarBusy.value = true;
+  try {
+    await autoSaveSession();
+    const session = JSON.parse(await window.api.readLocalFile(file.path));
+    if (session?.funchat_history !== true) throw new Error('不是有效的 Funchat 会话');
+    defaultConversationName.value = file.basename.replace(/\.json$/i, '');
+    await loadSession(session);
+  } catch (error) {
+    showDismissibleMessage.error(`加载会话失败: ${error.message}`);
+  } finally {
+    sidebarBusy.value = false;
+  }
+};
+
+const handleThemeChange = async isDark => {
+  if (currentConfig.value.isDarkMode === isDark) return;
+  currentConfig.value.isDarkMode = isDark;
+  if (!currentConfig.value.prompts?.[CODE.value]?.icon) {
+    favicon.value = '';
+  }
+  try {
+    const result = await window.api.saveSetting('isDarkMode', isDark);
+    if (result?.success === false) throw new Error(result.message || '保存失败');
+  } catch (error) {
+    currentConfig.value.isDarkMode = !isDark;
+    showDismissibleMessage.error(`主题切换失败: ${error.message}`);
+  }
+};
 const autoCloseOnBlur = ref(false);
 const modelList = ref([]);
 const modelMap = ref({});
@@ -550,15 +629,6 @@ const handleSkillSelectionConfirm = async () => {
   }
 };
 
-const isViewingLastMessage = computed(() => {
-  if (focusedMessageIndex.value === null) return false;
-  return focusedMessageIndex.value === chat_show.value.length - 1;
-});
-
-const nextButtonTooltip = computed(() => {
-  return isViewingLastMessage.value ? '滚动到底部' : '查看下一条消息';
-});
-
 // 滚动到底部函数
 const scrollToBottom = async (behavior = 'auto') => {
   await nextTick();
@@ -573,105 +643,13 @@ const scrollToBottom = async (behavior = 'auto') => {
   }
 };
 
-const scrollToTop = () => {
-  const el = chatContainerRef.value?.$el;
-  if (el) {
-    el.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-};
-
-// 强制滚动（点击按钮时）
-const forceScrollToBottom = () => {
-  isForcingScroll.value = true;
-  isSticky.value = true; // 强制激活粘滞
-  isAtBottom.value = true;
-  showScrollToBottomButton.value = false;
-  focusedMessageIndex.value = null;
-
-  // 点击按钮时，为了视觉反馈，可以使用平滑滚动
-  scrollToBottom('smooth');
-
-  setTimeout(() => { isForcingScroll.value = false; }, 500);
-};
-
-const findFocusedMessageIndex = () => {
-  const container = chatContainerRef.value?.$el;
-  if (!container) return;
-  const scrollTop = container.scrollTop;
-  let closestIndex = -1;
-  let smallestDistance = Infinity;
-  for (let i = chat_show.value.length - 1; i >= 0; i--) {
-    const msgComponent = getMessageComponentByIndex(i);
-    if (msgComponent) {
-      const el = msgComponent.$el;
-      const elTop = el.offsetTop;
-      const elBottom = elTop + el.clientHeight;
-      if (elTop < scrollTop + container.clientHeight && elBottom > scrollTop) {
-        const distance = Math.abs(elTop - scrollTop);
-        if (distance < smallestDistance) {
-          smallestDistance = distance;
-          closestIndex = i;
-        }
-      }
-    }
-  }
-  if (closestIndex !== -1) focusedMessageIndex.value = closestIndex;
-};
-
-// 滚动监听：仅负责更新 isSticky 状态和 UI 按钮显示
+// 滚动监听：更新自动跟随状态。
 const handleScroll = (event) => {
-  if (isForcingScroll.value) return;
-
   const el = event.target;
   if (!el) return;
-
-  // 计算距离底部的距离
-  const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-  const tolerance = 20; // 容差值
-
-  // 核心逻辑：用户只要向上滚动离开底部，就取消粘滞；一旦触底，重新激活粘滞
-  const atBottom = distanceToBottom <= tolerance;
-
-  if (atBottom) {
-    if (!isSticky.value) isSticky.value = true;
-    if (!isAtBottom.value) isAtBottom.value = true;
-    showScrollToBottomButton.value = false;
-    focusedMessageIndex.value = null;
-  } else {
-    if (isSticky.value) isSticky.value = false; // 用户主动离开了底部
-    if (isAtBottom.value) isAtBottom.value = false;
-    showScrollToBottomButton.value = true;
-    findFocusedMessageIndex();
-  }
-};
-
-const navigateToPreviousMessage = () => {
-  findFocusedMessageIndex();
-  const currentIndex = focusedMessageIndex.value;
-  if (currentIndex === null) return;
-  const targetComponent = getMessageComponentByIndex(currentIndex);
-  const container = chatContainerRef.value?.$el;
-  if (!targetComponent || !container) return;
-  const element = targetComponent.$el;
-  const scrollDifference = container.scrollTop - element.offsetTop;
-  if (scrollDifference > 5) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  else if (currentIndex > 0) {
-    const newIndex = currentIndex - 1;
-    focusedMessageIndex.value = newIndex;
-    const previousComponent = getMessageComponentByIndex(newIndex);
-    if (previousComponent) previousComponent.$el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-};
-
-const navigateToNextMessage = () => {
-  findFocusedMessageIndex();
-  if (focusedMessageIndex.value !== null && focusedMessageIndex.value < chat_show.value.length - 1) {
-    focusedMessageIndex.value++;
-    const targetComponent = getMessageComponentByIndex(focusedMessageIndex.value);
-    if (targetComponent) targetComponent.$el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } else {
-    forceScrollToBottom();
-  }
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 20;
+  isSticky.value = atBottom;
+  isAtBottom.value = atBottom;
 };
 
 const isCollapsed = (index) => collapsedMessages.value.has(index);
@@ -1195,7 +1173,7 @@ onMounted(async () => {
     });
   }
 
-  const initializeWindow = async (data = null) => {
+  initializeWindow = async (data = null) => {
     try {
       const configData = await window.api.getConfig();
       currentConfig.value = configData.config;
@@ -1213,7 +1191,7 @@ onMounted(async () => {
       const userInfo = await window.api.getUser();
       UserAvart.value = userInfo.avatar;
     } catch (err) {
-      UserAvart.value = "user.png";
+      UserAvart.value = "";
     }
 
     if (data?.os) {
@@ -1254,8 +1232,8 @@ onMounted(async () => {
       AIAvart.value = currentPromptConfig.icon;
       favicon.value = currentPromptConfig.icon;
     } else {
-      AIAvart.value = "ai.svg";
-      favicon.value = currentConfig.value.isDarkMode ? "favicon-b.png" : "favicon.png";
+      AIAvart.value = "";
+      favicon.value = "";
     }
 
     autoCloseOnBlur.value = currentPromptConfig.autoCloseOnBlur ?? false;
@@ -1414,6 +1392,7 @@ onMounted(async () => {
     }
 
     await addCopyButtonsToCodeBlocks();
+    await refreshLocalChatFiles();
     setTimeout(() => {
       chatInputRef.value?.focus({ cursor: 'end' });
     }, 100);
@@ -1640,44 +1619,60 @@ const getSessionDataAsObject = () => {
     isAutoApproveTools: isAutoApproveTools.value
   };
 }
-const saveSessionToCloud = async () => {
+
+const getDefaultConversationBasename = (includeSeconds = false) => {
+  if (defaultConversationName.value) return defaultConversationName.value;
+
   const now = new Date();
-  const year = String(now.getFullYear()).slice(-2);
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).toString().padStart(2, '0');
-  const hours = String(now.getHours()).toString().padStart(2, '0');
-  const minutes = String(now.getMinutes()).toString().padStart(2, '0');
-  const defaultBasename = defaultConversationName.value || `${CODE.value || 'AI'}-${year}${month}${day}-${hours}${minutes}`;
+  const parts = [
+    String(now.getFullYear()).slice(-2),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+    '-',
+    String(now.getHours()).padStart(2, '0'),
+    String(now.getMinutes()).padStart(2, '0'),
+  ];
+  if (includeSeconds) parts.push(String(now.getSeconds()).padStart(2, '0'));
+  return `${CODE.value || 'AI'}-${parts.join('')}`;
+};
+
+const createFilenamePrompt = (inputValue, extension, description = '请输入会话名称。') => () => h('div', null, [
+  h('p', { style: 'margin-bottom: 15px; font-size: 14px; color: var(--el-text-color-regular);' }, description),
+  h(ElInput, {
+    modelValue: inputValue.value,
+    'onUpdate:modelValue': (value) => { inputValue.value = value; },
+    placeholder: '文件名',
+    ref: (input) => { if (input) setTimeout(() => input.focus(), 100); },
+    onKeydown: (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      document.querySelector('.filename-prompt-dialog .el-message-box__btns .el-button--primary')?.click();
+    },
+  }, { append: () => h('div', { class: 'input-suffix-display' }, `.${extension}`) }),
+]);
+
+const getValidFilename = (value, extension) => {
+  try {
+    return buildFilename(value, extension);
+  } catch (error) {
+    showDismissibleMessage.error(error.message);
+    return null;
+  }
+};
+
+const saveSessionToCloud = async () => {
+  const defaultBasename = getDefaultConversationBasename();
   const inputValue = ref(defaultBasename);
   try {
     await ElMessageBox({
       title: '保存到云端',
-      message: () => h('div', null, [
-        h('p', { style: 'margin-bottom: 15px; font-size: 14px; color: var(--el-text-color-regular);' }, '请输入要保存到云端的会话名称。'),
-        h(ElInput, {
-          modelValue: inputValue.value,
-          'onUpdate:modelValue': (val) => { inputValue.value = val; },
-          placeholder: '文件名',
-          ref: (elInputInstance) => {
-            if (elInputInstance) {
-              setTimeout(() => elInputInstance.focus(), 100);
-            }
-          },
-          onKeydown: (event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              document.querySelector('.filename-prompt-dialog .el-message-box__btns .el-button--primary')?.click();
-            }
-          }
-        },
-          { append: () => h('div', { class: 'input-suffix-display' }, '.json') })]),
+      message: createFilenamePrompt(inputValue, 'json', '请输入要保存到云端的会话名称。'),
       showCancelButton: true, confirmButtonText: '确认', cancelButtonText: '取消', customClass: 'filename-prompt-dialog',
       beforeClose: async (action, instance, done) => {
         if (action === 'confirm') {
-          let finalBasename = inputValue.value.trim();
-          if (!finalBasename) { showDismissibleMessage.error('文件名不能为空'); return; }
-          if (finalBasename.toLowerCase().endsWith('.json')) finalBasename = finalBasename.slice(0, -5);
-          const filename = finalBasename + '.json';
+          const file = getValidFilename(inputValue.value, 'json');
+          if (!file) return;
+          const { basename: finalBasename, filename } = file;
           instance.confirmButtonLoading = true;
           showDismissibleMessage.info('正在保存到云端...');
           try {
@@ -1706,8 +1701,7 @@ const saveSessionAsMarkdown = async () => {
   let markdownContent = '';
   const now = new Date();
   const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const fileTimestamp = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-  const defaultBasename = defaultConversationName.value || `${CODE.value || 'AI'}-${fileTimestamp}`;
+  const defaultBasename = getDefaultConversationBasename();
 
   const formatContent = (content) => !Array.isArray(content) ? String(content).trim() : content.map(p => p.type === 'text' ? p.text.trim() : '').join(' ');
   const formatFiles = (content) => Array.isArray(content) ? content.filter(p => p.type !== 'text').map(p => p.type === 'file' ? p.file.filename : 'Image') : [];
@@ -1777,32 +1771,13 @@ const saveSessionAsMarkdown = async () => {
   try {
     await ElMessageBox({
       title: '保存为 Markdown',
-      message: () => h('div', null, [
-        h('p', { style: 'margin-bottom: 15px; font-size: 14px; color: var(--el-text-color-regular);' }, '请输入会话名称。'),
-        h(ElInput, {
-          modelValue: inputValue.value,
-          'onUpdate:modelValue': (val) => { inputValue.value = val; },
-          placeholder: '文件名',
-          ref: (elInputInstance) => {
-            if (elInputInstance) {
-              setTimeout(() => elInputInstance.focus(), 100);
-            }
-          },
-          onKeydown: (event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              document.querySelector('.filename-prompt-dialog .el-message-box__btns .el-button--primary')?.click();
-            }
-          }
-        },
-          { append: () => h('div', { class: 'input-suffix-display' }, '.md') })]),
+      message: createFilenamePrompt(inputValue, 'md'),
       showCancelButton: true, confirmButtonText: '保存', cancelButtonText: '取消', customClass: 'filename-prompt-dialog',
       beforeClose: async (action, instance, done) => {
         if (action === 'confirm') {
-          let finalBasename = inputValue.value.trim();
-          if (!finalBasename) { showDismissibleMessage.error('文件名不能为空'); return; }
-          if (finalBasename.toLowerCase().endsWith('.md')) finalBasename = finalBasename.slice(0, -3);
-          const finalFilename = finalBasename + '.md';
+          const file = getValidFilename(inputValue.value, 'md');
+          if (!file) return;
+          const { basename: finalBasename, filename: finalFilename } = file;
           instance.confirmButtonLoading = true;
           try {
             await window.api.saveFile({ title: '保存为 Markdown', defaultPath: finalFilename, buttonLabel: '保存', filters: [{ name: 'Markdown 文件', extensions: ['md'] }, { name: '所有文件', extensions: ['*'] }], fileContent: markdownContent });
@@ -1822,8 +1797,7 @@ const saveSessionAsMarkdown = async () => {
 const saveSessionAsHtml = async () => {
   const now = new Date();
   const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const fileTimestamp = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-  const defaultBasename = defaultConversationName.value || `${CODE.value || 'AI'}-${fileTimestamp}`;
+  const defaultBasename = getDefaultConversationBasename();
   const inputValue = ref(defaultBasename);
 
   const defaultAiSvg = `<svg width="200" height="200" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50" fill="#FDA5A5" /><g stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"><rect x="25" y="32" width="50" height="42" rx="8" /><line x1="40" y1="63" x2="60" y2="63" /><line x1="35" y1="32" x2="32" y2="22" /><line x1="65" y1="32" x2="68" y2="22" /></g><g fill="white" stroke="none"><circle cx="40" cy="48" r="3.5" /><circle cx="60" cy="48" r="3.5" /><circle cx="32" cy="20" r="3" /><circle cx="68" cy="20" r="3" /></g></svg>`;
@@ -1836,20 +1810,6 @@ const saveSessionAsHtml = async () => {
       if (!str) return '';
       const s = String(str);
       return s.length > len ? s.substring(0, len) + '...' : s;
-    };
-
-    const formatMessageText = (content) => {
-      if (!content) return "";
-      if (typeof content === 'string') return content;
-      if (!Array.isArray(content)) return String(content);
-
-      let textString = "";
-      content.forEach(part => {
-        if (part.type === 'text' && part.text && !(part.text.toLowerCase().startsWith('file name:') && part.text.toLowerCase().endsWith('file end'))) {
-          textString += part.text;
-        }
-      });
-      return textString.trim();
     };
 
     const processContentToHtml = (content) => {
@@ -1904,13 +1864,14 @@ const saveSessionAsHtml = async () => {
       let tocText = '';
       if (isUser) tocText = truncate(formatMessageText(message.content), 30) || '用户发送图片/文件';
       else tocText = truncate(formatMessageText(message.content), 30) || 'AI 回复';
+      const safeTocText = escapeHtml(tocText);
 
       let dotClass = isUser ? 'user-dot' : 'ai-dot';
 
       tocContent += `
         <li class="timeline-item">
-            <a href="#${msgId}" class="timeline-dot ${dotClass}" aria-label="${tocText}">
-                <span class="timeline-tooltip">${tocText}</span>
+            <a href="#${msgId}" class="timeline-dot ${dotClass}" aria-label="${safeTocText}">
+                <span class="timeline-tooltip">${safeTocText}</span>
             </a>
         </li>`;
 
@@ -1920,6 +1881,7 @@ const saveSessionAsHtml = async () => {
           avatar = `data:image/svg+xml;base64,${btoa(defaultAiSvg)}`;
         }
       }
+      const safeAvatar = escapeHtml(avatar);
 
       let author = isUser ? '用户' : (message.aiName || 'AI');
       let time = message.timestamp || message.completedTimestamp;
@@ -1939,12 +1901,11 @@ const saveSessionAsHtml = async () => {
       if (message.tool_calls && message.tool_calls.length > 0) {
         toolsHtml = '<div class="tool-calls-wrapper">';
         message.tool_calls.forEach(tool => {
-          const truncatedResult = truncate(tool.result, 100);
-          const safeResult = truncatedResult.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          const safeResult = escapeHtml(truncate(tool.result, 100));
           toolsHtml += `
                 <div class="tool-call-box">
                     <span class="tool-icon">🛠️</span>
-                    <span class="tool-name">${tool.name}</span>
+                    <span class="tool-name">${escapeHtml(tool.name)}</span>
                     <span class="tool-result">${safeResult}</span>
                 </div>`;
         });
@@ -1957,16 +1918,16 @@ const saveSessionAsHtml = async () => {
           headerHtml = `
                <div class="header user-header">
                  <span class="timestamp">${time ? formatTimestamp(time) : ''}</span>
-                 <img src="${avatar}" class="avatar" alt="avatar">
+                 <img src="${safeAvatar}" class="avatar" alt="avatar">
                </div>`;
         } else {
           headerHtml = `
                <div class="header ai-header">
-                 <img src="${avatar}" class="avatar" alt="avatar">
+                 <img src="${safeAvatar}" class="avatar" alt="avatar">
                  <div class="ai-meta">
                     <div class="ai-name-row">
-                        <strong>${author}</strong>
-                        ${message.voiceName ? `<span class="voice-tag">(${message.voiceName})</span>` : ''}
+                        <strong>${escapeHtml(author)}</strong>
+                        ${message.voiceName ? `<span class="voice-tag">(${escapeHtml(message.voiceName)})</span>` : ''}
                     </div>
                     <span class="timestamp">${time ? formatTimestamp(time) : ''}</span>
                  </div>
@@ -2144,7 +2105,7 @@ const saveSessionAsHtml = async () => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>聊天记录: ${CODE.value} (${timestamp})</title>
+        <title>聊天记录: ${escapeHtml(CODE.value)} (${timestamp})</title>
         ${cssStyles}
       </head>
       <body>
@@ -2155,8 +2116,8 @@ const saveSessionAsHtml = async () => {
         </nav>
         <div class="main-container">
             <header class="page-header">
-                <h1>${CODE.value}</h1>
-                <p>模型: ${modelMap.value[model.value] || 'N/A'} &bull; 导出时间: ${timestamp}</p>
+                <h1>${escapeHtml(CODE.value)}</h1>
+                <p>模型: ${escapeHtml(modelMap.value[model.value] || 'N/A')} &bull; 导出时间: ${timestamp}</p>
             </header>
             <div class="chat-container">
                 ${bodyContent}
@@ -2170,27 +2131,13 @@ const saveSessionAsHtml = async () => {
   try {
     await ElMessageBox({
       title: '保存为 HTML',
-      message: () => h('div', null, [
-        h('p', { style: 'margin-bottom: 15px; font-size: 14px; color: var(--el-text-color-regular);' }, '请输入会话名称。'),
-        h(ElInput, {
-          modelValue: inputValue.value,
-          'onUpdate:modelValue': (val) => { inputValue.value = val; },
-          placeholder: '文件名',
-          ref: (elInputInstance) => {
-            if (elInputInstance) {
-              setTimeout(() => elInputInstance.focus(), 100);
-            }
-          },
-          onKeydown: (event) => { if (event.key === 'Enter') { event.preventDefault(); document.querySelector('.filename-prompt-dialog .el-message-box__btns .el-button--primary')?.click(); } }
-        },
-          { append: () => h('div', { class: 'input-suffix-display' }, '.html') })]),
+      message: createFilenamePrompt(inputValue, 'html'),
       showCancelButton: true, confirmButtonText: '保存', cancelButtonText: '取消', customClass: 'filename-prompt-dialog',
       beforeClose: async (action, instance, done) => {
         if (action === 'confirm') {
-          let finalBasename = inputValue.value.trim();
-          if (!finalBasename) { showDismissibleMessage.error('文件名不能为空'); return; }
-          if (finalBasename.toLowerCase().endsWith('.html')) finalBasename = finalBasename.slice(0, -5);
-          const finalFilename = finalBasename + '.html';
+          const file = getValidFilename(inputValue.value, 'html');
+          if (!file) return;
+          const { basename: finalBasename, filename: finalFilename } = file;
           instance.confirmButtonLoading = true;
           try {
             const htmlContent = generateHtmlContent();
@@ -2211,39 +2158,18 @@ const saveSessionAsHtml = async () => {
 const saveSessionAsJson = async () => {
   const sessionData = getSessionDataAsObject();
   const jsonString = JSON.stringify(sessionData, null, 2);
-  const now = new Date();
-  const fileTimestamp = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-  const defaultBasename = defaultConversationName.value || `${CODE.value || 'AI'}-${fileTimestamp}`;
+  const defaultBasename = getDefaultConversationBasename(true);
   const inputValue = ref(defaultBasename);
   try {
     await ElMessageBox({
       title: '保存为 JSON',
-      message: () => h('div', null, [
-        h('p', { style: 'margin-bottom: 15px; font-size: 14px; color: var(--el-text-color-regular);' }, '请输入会话名称。'),
-        h(ElInput, {
-          modelValue: inputValue.value,
-          'onUpdate:modelValue': (val) => { inputValue.value = val; },
-          placeholder: '文件名',
-          ref: (elInputInstance) => {
-            if (elInputInstance) {
-              setTimeout(() => elInputInstance.focus(), 100);
-            }
-          },
-          onKeydown: (event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              document.querySelector('.filename-prompt-dialog .el-message-box__btns .el-button--primary')?.click();
-            }
-          }
-        },
-          { append: () => h('div', { class: 'input-suffix-display' }, '.json') })]),
+      message: createFilenamePrompt(inputValue, 'json'),
       showCancelButton: true, confirmButtonText: '保存', cancelButtonText: '取消', customClass: 'filename-prompt-dialog',
       beforeClose: async (action, instance, done) => {
         if (action === 'confirm') {
-          let finalBasename = inputValue.value.trim();
-          if (!finalBasename) { showDismissibleMessage.error('文件名不能为空'); return; }
-          if (finalBasename.toLowerCase().endsWith('.json')) finalBasename = finalBasename.slice(0, -5);
-          const finalFilename = finalBasename + '.json';
+          const file = getValidFilename(inputValue.value, 'json');
+          if (!file) return;
+          const { basename: finalBasename, filename: finalFilename } = file;
           instance.confirmButtonLoading = true;
           try {
             const localChatPath = currentConfig.value.webdav?.localChatPath;
@@ -2309,16 +2235,18 @@ const handleRenameSession = async () => {
         confirmButtonText: '确认',
         cancelButtonText: '取消',
         inputValidator: (val) => {
-          if (!val || !val.trim()) return '名称不能为空';
-          if (/[\\/:*?"<>|]/.test(val)) return '文件名包含非法字符';
-          return true;
+          try {
+            buildFilename(val, 'json');
+            return true;
+          } catch (error) {
+            return error.message;
+          }
         },
         customClass: 'filename-prompt-dialog', // 复用已有的弹窗样式
       }
     );
 
-    let newBaseName = (userInput || "").trim();
-    if (newBaseName.toLowerCase().endsWith('.json')) newBaseName = newBaseName.slice(0, -5);
+    const { basename: newBaseName } = buildFilename(userInput, 'json');
 
     if (newBaseName === oldBaseName) return;
 
@@ -2371,39 +2299,19 @@ const handleRenameSession = async () => {
 };
 
 const saveSessionAsImage = async () => {
-  const now = new Date();
-  const fileTimestamp = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-  const defaultBasename = defaultConversationName.value || `${CODE.value || 'AI'}-${fileTimestamp}`;
+  const defaultBasename = getDefaultConversationBasename(true);
   const inputValue = ref(defaultBasename);
 
   try {
     await ElMessageBox({
       title: '保存为图片',
-      message: () => h('div', null, [
-        h('p', { style: 'margin-bottom: 15px; font-size: 14px; color: var(--el-text-color-regular);' }, '请输入文件名。'),
-        h(ElInput, {
-          modelValue: inputValue.value,
-          'onUpdate:modelValue': (val) => { inputValue.value = val; },
-          placeholder: '文件名',
-          ref: (elInputInstance) => {
-            if (elInputInstance) {
-              setTimeout(() => elInputInstance.focus(), 100);
-            }
-          },
-          onKeydown: (event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              document.querySelector('.filename-prompt-dialog .el-message-box__btns .el-button--primary')?.click();
-            }
-          }
-        },
-          { append: () => h('div', { class: 'input-suffix-display' }, '.png') })]),
+      message: createFilenamePrompt(inputValue, 'png', '请输入文件名。'),
       showCancelButton: true, confirmButtonText: '保存', cancelButtonText: '取消', customClass: 'filename-prompt-dialog',
       beforeClose: async (action, instance, done) => {
         if (action === 'confirm') {
-          let finalBasename = inputValue.value.trim();
-          if (!finalBasename) { showDismissibleMessage.error('文件名不能为空'); return; }
-          const finalFilename = finalBasename + '.png';
+          const file = getValidFilename(inputValue.value, 'png');
+          if (!file) return;
+          const { basename: finalBasename, filename: finalFilename } = file;
           instance.confirmButtonLoading = true;
 
           // 还原最开始的消息提示，不作更改
@@ -2648,7 +2556,6 @@ const loadSession = async (jsonData) => {
   loading.value = true;
   collapsedMessages.value.clear();
   messageRefs.clear();
-  focusedMessageIndex.value = null;
 
   try {
     CODE.value = jsonData.CODE;
@@ -2677,8 +2584,8 @@ const loadSession = async (jsonData) => {
       AIAvart.value = currentPromptConfigFromLoad.icon;
       favicon.value = currentPromptConfigFromLoad.icon;
     } else {
-      AIAvart.value = "ai.svg";
-      favicon.value = currentConfig.value.isDarkMode ? "favicon-b.png" : "favicon.png";
+      AIAvart.value = "";
+      favicon.value = "";
     }
 
     modelList.value = [];
@@ -3824,7 +3731,6 @@ const deleteMessage = (index) => {
   }
   collapsedMessages.value = newCollapsedMessages;
 
-  focusedMessageIndex.value = null;
 };
 
 const clearHistory = () => {
@@ -3847,7 +3753,6 @@ const clearHistory = () => {
 
   collapsedMessages.value.clear();
   messageRefs.clear();
-  focusedMessageIndex.value = null;
   defaultConversationName.value = "";
   chatInputRef.value?.focus({ cursor: 'end' });
   showDismissibleMessage.success('历史记录已清除');
@@ -4029,67 +3934,6 @@ const handleOpenSearch = () => {
   }
 };
 
-const navMessages = computed(() => {
-  return chat_show.value
-    .map((msg, index) => ({ ...msg, originalIndex: index })) // 保留原始索引用于跳转
-    .filter(msg => msg.role !== 'system');
-});
-
-
-
-const getMessagePreviewText = (message) => {
-  let text = '';
-
-  // 1. 尝试获取文本内容
-  if (typeof message.content === 'string') {
-    text = message.content;
-  } else if (Array.isArray(message.content)) {
-    const textPart = message.content.find(p => p.type === 'text' && p.text && p.text.trim());
-    if (textPart) {
-      text = textPart.text;
-    } else {
-      // 2. 如果没有文本，查找附件/图片
-      const filePart = message.content.find(p => p.type === 'file' || p.type === 'input_file');
-      const imgPart = message.content.find(p => p.type === 'image_url');
-      const audioPart = message.content.find(p => p.type === 'input_audio');
-
-      if (filePart) {
-        // 优先显示文件名
-        text = `[文件] ${filePart.filename || filePart.name || '未知文件'}`;
-      } else if (imgPart) {
-        text = '[图片]';
-      } else if (audioPart) {
-        text = '[语音消息]';
-      }
-    }
-  }
-
-  // 3. 如果还是空的，检查工具调用
-  if (!text && message.tool_calls && message.tool_calls.length > 0) {
-    const toolNames = message.tool_calls.map(t => t.name).join(', ');
-    text = `调用工具: ${toolNames}`;
-  }
-
-  // 4. AI 思考中状态
-  if (!text && message.role === 'assistant' && message.status === 'thinking') {
-    text = '思考中...';
-  }
-
-  // 5. 兜底
-  if (!text) text = message.role === 'user' ? '用户消息' : 'AI 回复';
-
-  // 截断，防止太长
-  return text.slice(0, 30) + (text.length > 30 ? '...' : '');
-};
-
-// 2. 滚动到指定消息
-const scrollToMessageByIndex = (index) => {
-  const component = getMessageComponentByIndex(index);
-  if (component && component.$el && component.$el.nodeType === 1) {
-    component.$el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    focusedMessageIndex.value = index;
-  }
-};
 </script>
 
 <template>
@@ -4102,105 +3946,47 @@ const scrollToMessageByIndex = (index) => {
     }">
     </div>
     <el-container class="app-container" :class="{ 'has-bg': !!windowBackgroundImage }">
-      <TitleBar :favicon="favicon" :promptName="CODE" :conversationName="defaultConversationName"
-        :isAlwaysOnTop="isAlwaysOnTop" :autoCloseOnBlur="autoCloseOnBlur" :isDarkMode="currentConfig.isDarkMode"
-        :os="currentOS" @save-window-size="handleSaveWindowSize" @save-session="handleSaveSession"
-        @toggle-pin="handleTogglePin" @toggle-always-on-top="handleToggleAlwaysOnTop" @minimize="handleMinimize"
-        @maximize="handleMaximize" @close="handleCloseWindow" />
-      <ChatHeader :modelMap="modelMap" :model="model" :is-mcp-loading="isMcpLoading" :systemPrompt="currentSystemPrompt"
-        @open-model-dialog="handleOpenModelDialog" @show-system-prompt="handleShowSystemPrompt"
-        @open-search="handleOpenSearch" />
+      <div class="workspace-shell">
+        <AgentSidebar :agents="enabledAgents" :active-code="CODE" :histories="currentAgentHistories"
+          :favicon="favicon" :conversation-name="defaultConversationName" :is-always-on-top="isAlwaysOnTop"
+          :auto-close-on-blur="autoCloseOnBlur" :is-dark="currentConfig.isDarkMode"
+          :loading="loading || sidebarBusy"
+          @select-agent="handleSelectAgent" @select-history="handleLoadHistory" @new-chat="startNewChat()"
+          @toggle-theme="handleThemeChange" @save-window-size="handleSaveWindowSize"
+          @save-session="handleSaveSession" @toggle-pin="handleTogglePin"
+          @toggle-always-on-top="handleToggleAlwaysOnTop" @open-model-dialog="handleOpenModelDialog"
+          @show-system-prompt="handleShowSystemPrompt" @open-search="handleOpenSearch" @minimize="handleMinimize"
+          @maximize="handleMaximize" @close="handleCloseWindow" />
 
-      <div class="main-area-wrapper">
-        <el-main ref="chatContainerRef" class="chat-main custom-scrollbar" @click="handleMainClick"
-          @scroll="handleScroll">
-          <ChatMessage v-for="(message, index) in chat_show" :key="message.id" :is-auto-approve="isAutoApproveTools"
-            @update-auto-approve="handleToggleAutoApprove" @confirm-tool="handleToolApproval"
-            @reject-tool="handleToolApproval" :ref="el => setMessageRef(el, message.id)" :message="message"
-            :index="index" :is-last-message="index === chat_show.length - 1" :is-loading="loading"
-            :user-avatar="UserAvart" :ai-avatar="AIAvart" :is-collapsed="isCollapsed(index)"
-            :is-dark-mode="currentConfig.isDarkMode" @delete-message="handleDeleteMessage" @copy-text="handleCopyText"
-            @re-ask="handleReAsk" @toggle-collapse="handleToggleCollapse" @show-system-prompt="handleShowSystemPrompt"
-            @avatar-click="onAvatarClick" @edit-message-requested="handleEditStart" @edit-finished="handleEditEnd"
-            @edit-message="handleEditMessage" @cancel-tool-call="handleCancelToolCall" />
-        </el-main>
+        <section class="chat-workspace">
+          <div class="main-area-wrapper">
+            <el-main ref="chatContainerRef" class="chat-main custom-scrollbar" @click="handleMainClick"
+              @scroll="handleScroll">
+              <ChatMessage v-for="(message, index) in chat_show" :key="message.id"
+                :is-auto-approve="isAutoApproveTools" @update-auto-approve="handleToggleAutoApprove"
+                @confirm-tool="handleToolApproval" @reject-tool="handleToolApproval"
+                :ref="el => setMessageRef(el, message.id)" :message="message" :index="index"
+                :is-last-message="index === chat_show.length - 1" :is-loading="loading"
+                :user-avatar="UserAvart" :ai-avatar="AIAvart" :is-collapsed="isCollapsed(index)"
+                :is-dark-mode="currentConfig.isDarkMode" @delete-message="handleDeleteMessage"
+                @copy-text="handleCopyText" @re-ask="handleReAsk" @toggle-collapse="handleToggleCollapse"
+                @show-system-prompt="handleShowSystemPrompt" @avatar-click="onAvatarClick"
+                @edit-message-requested="handleEditStart" @edit-finished="handleEditEnd"
+                @edit-message="handleEditMessage" @cancel-tool-call="handleCancelToolCall" />
+            </el-main>
 
-        <div class="unified-nav-sidebar" v-if="chat_show.length > 0">
-
-          <!-- 上部控制区 -->
-          <div class="nav-group top">
-            <el-tooltip content="回到顶部" placement="left" :show-after="500">
-              <div class="nav-mini-btn" @click="scrollToTop">
-                <el-icon :size="16">
-                  <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                    <path
-                      d="M199.36 572.768a31.904 31.904 0 0 0 22.624-9.376l294.144-294.144 285.728 285.728a31.968 31.968 0 1 0 45.248-45.248L538.752 201.376a32 32 0 0 0-45.28 0L176.704 518.144a31.968 31.968 0 0 0 22.656 54.624z m339.424-115.392a32 32 0 0 0-45.28 0L176.736 774.144a31.968 31.968 0 1 0 45.248 45.248l294.144-294.144 285.728 285.728a31.968 31.968 0 1 0 45.248-45.248l-308.32-308.352z">
-                    </path>
-                  </svg>
-                </el-icon>
-              </div>
-            </el-tooltip>
-            <el-tooltip content="上一条消息" placement="left" :show-after="500">
-              <div class="nav-mini-btn" @click="navigateToPreviousMessage">
-                <el-icon>
-                  <ArrowUp />
-                </el-icon>
-              </div>
-            </el-tooltip>
-          </div>
-
-          <div class="nav-timeline-area">
-            <div class="timeline-track"></div>
-            <div class="timeline-scroller no-scrollbar">
-              <div v-for="msg in navMessages" :key="msg.id" class="timeline-node-wrapper"
-                @click="scrollToMessageByIndex(msg.originalIndex)">
-                <el-tooltip :content="getMessagePreviewText(msg)" placement="left" :show-after="200" :enterable="false"
-                  effect="dark">
-                  <div class="timeline-node" :class="[
-                    msg.role,
-                    { 'active': focusedMessageIndex === msg.originalIndex }
-                  ]">
-                  </div>
-                </el-tooltip>
-              </div>
-            </div>
-          </div>
-
-          <!-- 下部控制区 -->
-          <div class="nav-group bottom">
-            <el-tooltip :content="nextButtonTooltip" placement="left" :show-after="500">
-              <div class="nav-mini-btn" @click="navigateToNextMessage">
-                <el-icon>
-                  <ArrowDown />
-                </el-icon>
-              </div>
-            </el-tooltip>
-
-            <el-tooltip content="跳到底部" placement="left" :show-after="500">
-              <div class="nav-mini-btn" :class="{ 'highlight-bottom': showScrollToBottomButton }"
-                @click="forceScrollToBottom">
-                <el-icon :size="16">
-                  <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                    <path
-                      d="M493.504 558.144a31.904 31.904 0 0 0 45.28 0l308.352-308.352a31.968 31.968 0 1 0-45.248-45.248L516.16 490.272 221.984 196.128a31.968 31.968 0 1 0-45.248 45.248l316.768 316.768z m308.384-97.568L516.16 746.304 222.016 452.16a31.968 31.968 0 1 0-45.248 45.248l316.768 316.768a31.904 31.904 0 0 0 45.28 0l308.352-308.352a32 32 0 1 0-45.28-45.248z">
-                    </path>
-                  </svg>
-                </el-icon>
-              </div>
-            </el-tooltip>
-          </div>
-
-        </div>
-
-        <ChatInput ref="chatInputRef" v-model:prompt="prompt" v-model:fileList="fileList"
+            <ChatInput ref="chatInputRef" v-model:prompt="prompt" v-model:fileList="fileList"
           v-model:selectedVoice="selectedVoice" v-model:tempReasoningEffort="tempReasoningEffort" :loading="loading"
           :ctrlEnterToSend="currentConfig.CtrlEnterToSend" :layout="inputLayout" :voiceList="currentConfig.voiceList"
+          :model-map="modelMap" :model="model" :is-mcp-loading="isMcpLoading"
           :is-mcp-active="isMcpActive" :all-mcp-servers="availableMcpServers" :active-mcp-ids="sessionMcpServerIds"
           :active-skill-ids="sessionSkillIds" :all-skills="allSkillsList" @submit="handleSubmit" @cancel="handleCancel"
           @clear-history="handleClearHistory" @remove-file="handleRemoveFile" @upload="handleUpload"
           @send-audio="handleSendAudio" @open-mcp-dialog="handleOpenMcpDialog" @pick-file-start="handlePickFileStart"
           @toggle-mcp="handleQuickMcpToggle" @toggle-skill="handleQuickSkillToggle"
-          @open-skill-dialog="toggleSkillDialog" />
+              @open-skill-dialog="toggleSkillDialog" @open-model-dialog="handleOpenModelDialog" />
+          </div>
+        </section>
       </div>
     </el-container>
   </main>
@@ -4467,30 +4253,123 @@ body {
 }
 
 :root {
-  /* 浅色模式变量 */
-  --el-bg-color: #FFFFFD !important;
-  --el-bg-color-userbubble: #F5F4ED;
-  --el-fill-color: #F0F2F5 !important;
-  --el-fill-color-light: #F6F6F6 !important;
-  --el-bg-color-input: #F6F6F6 !important;
-  /* 明确指定浅色输入框背景 */
-  --el-fill-color-blank: var(--el-fill-color-light) !important;
+  --primary-1: 231, 250, 246;
+  --primary-2: 156, 225, 209;
+  --primary-3: 110, 210, 186;
+  --primary-4: 55, 195, 161;
+  --primary-5: 30, 179, 143;
+  --primary-6: 12, 164, 127;
+  --primary-7: 0, 149, 112;
+  --success-6: 39, 178, 115;
+  --warning-6: 255, 125, 0;
+  --danger-6: 243, 94, 81;
+  --color-bg-1: #ffffff;
+  --color-bg-2: #ffffff;
+  --color-bg-3: #ffffff;
+  --color-bg-4: #ffffff;
+  --color-bg-5: #ffffff;
+  --color-text-1: #1d2129;
+  --color-text-2: #374151;
+  --color-text-3: #86909c;
+  --color-text-4: #c9cdd4;
+  --color-border-1: #f2f3f5;
+  --color-border-2: #e7e8e9;
+  --color-border-3: #c9cdd4;
+  --color-border-4: #86909c;
+  --color-fill-1: #f7f8fa;
+  --color-fill-2: #f2f3f5;
+  --color-fill-3: #e5e6eb;
+  --color-fill-4: #c9cdd4;
+  --chat-panel-bg: var(--color-fill-2);
+  --color-icon: var(--color-text-3);
+  --color-primary-light-1: rgb(var(--primary-1));
+  --color-primary-light-2: rgb(var(--primary-2));
+  --color-primary-light-3: rgb(var(--primary-3));
+  --color-primary-light-4: rgb(var(--primary-4));
+  --color-warning-light-1: rgba(var(--warning-6), .12);
+  --color-warning-light-2: rgba(var(--warning-6), .2);
+  --color-danger-light-1: rgba(var(--danger-6), .12);
 
-  --text-primary: #000000;
-  --el-text-color-primary: var(--text-primary);
+  --el-color-primary: rgb(var(--primary-6)) !important;
+  --el-color-primary-light-3: rgb(var(--primary-4)) !important;
+  --el-color-primary-light-5: rgb(var(--primary-3)) !important;
+  --el-color-primary-light-8: rgb(var(--primary-2)) !important;
+  --el-color-primary-light-9: var(--color-primary-light-1) !important;
+  --el-color-primary-dark-2: rgb(var(--primary-7)) !important;
+  --el-color-success: rgb(var(--success-6)) !important;
+  --el-color-success-light-9: rgba(var(--success-6), .12) !important;
+  --el-color-warning: rgb(var(--warning-6)) !important;
+  --el-color-warning-light-9: var(--color-warning-light-1) !important;
+  --el-color-danger: rgb(var(--danger-6)) !important;
+  --el-color-danger-light-9: var(--color-danger-light-1) !important;
+  --el-bg-color: var(--color-bg-3) !important;
+  --el-bg-color-page: var(--color-fill-2) !important;
+  --el-bg-color-overlay: var(--color-bg-5) !important;
+  --el-bg-color-userbubble: #d6f3ec;
+  --el-fill-color: var(--color-fill-2) !important;
+  --el-fill-color-light: var(--color-fill-1) !important;
+  --el-fill-color-dark: var(--color-fill-3) !important;
+  --el-fill-color-darker: var(--color-fill-4) !important;
+  --el-bg-color-input: var(--color-bg-2) !important;
+  --el-fill-color-blank: var(--color-bg-3) !important;
+  --el-border-color: var(--color-border-2) !important;
+  --el-border-color-light: var(--color-border-2) !important;
+  --el-border-color-lighter: var(--color-border-1) !important;
+  --el-border-color-dark: var(--color-border-3) !important;
+  --el-border-color-darker: var(--color-border-4) !important;
+  --el-text-color-primary: var(--color-text-1) !important;
+  --el-text-color-regular: var(--color-text-2) !important;
+  --el-text-color-secondary: var(--color-text-3) !important;
+  --el-text-color-placeholder: var(--color-text-4) !important;
+  --el-text-color-disabled: var(--color-text-4) !important;
+  --text-primary: var(--color-text-2);
+  --text-on-accent: var(--color-text-2);
 }
 
 html.dark {
-  /* 深色模式变量强制覆盖 */
-  --el-bg-color: #212121 !important;
-  --el-bg-color-userbubble: #2F2F2F;
-  --el-fill-color: #424242 !important;
-  --el-fill-color-light: #2c2e33 !important;
-  --el-bg-color-input: #303030 !important;
-  --el-fill-color-blank: #212121 !important;
-
-  --text-primary: #ECECF1 !important;
-  --el-text-color-primary: #ECECF1 !important;
+  color-scheme: dark;
+  --primary-1: 0, 48, 36;
+  --primary-2: 1, 71, 54;
+  --primary-3: 3, 94, 72;
+  --primary-4: 5, 117, 90;
+  --primary-5: 8, 141, 108;
+  --primary-6: 12, 164, 127;
+  --primary-7: 16, 183, 143;
+  --success-6: 39, 178, 115;
+  --warning-6: 255, 150, 38;
+  --danger-6: 247, 105, 101;
+  --color-bg-1: #17171a;
+  --color-bg-2: #27282a;
+  --color-bg-3: #303133;
+  --color-bg-4: #313132;
+  --color-bg-5: #373739;
+  --color-text-1: rgba(255, 255, 255, .9);
+  --color-text-2: rgba(255, 255, 255, .7);
+  --color-text-3: rgba(255, 255, 255, .5);
+  --color-text-4: rgba(255, 255, 255, .3);
+  --color-border-1: #2e2e30;
+  --color-border-2: #39393c;
+  --color-border-3: #5f5f60;
+  --color-border-4: #929293;
+  --color-fill-1: rgba(255, 255, 255, .04);
+  --color-fill-2: rgba(255, 255, 255, .08);
+  --color-fill-3: rgba(255, 255, 255, .12);
+  --color-fill-4: rgba(255, 255, 255, .16);
+  --chat-panel-bg: var(--color-bg-2);
+  --color-primary-light-1: rgba(var(--primary-6), .2);
+  --color-primary-light-2: rgba(var(--primary-6), .35);
+  --color-primary-light-3: rgba(var(--primary-6), .5);
+  --color-primary-light-4: rgba(var(--primary-6), .65);
+  --color-warning-light-1: rgba(var(--warning-6), .2);
+  --color-warning-light-2: rgba(var(--warning-6), .35);
+  --color-danger-light-1: rgba(var(--danger-6), .2);
+  --el-bg-color-userbubble: var(--color-primary-light-1);
+  --el-color-primary-light-3: var(--color-primary-light-4) !important;
+  --el-color-primary-light-5: var(--color-primary-light-3) !important;
+  --el-color-primary-light-8: var(--color-primary-light-2) !important;
+  --el-color-primary-light-9: var(--color-primary-light-1) !important;
+  --text-primary: var(--color-text-2) !important;
+  --text-on-accent: var(--color-text-1);
 }
 
 .el-dialog {
@@ -5201,17 +5080,34 @@ html.dark .mcp-dialog-footer .el-checkbox__input.is-checked .el-checkbox__inner:
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background-color: var(--el-bg-color);
+  background-color: var(--color-bg-3);
   color: var(--el-text-color-primary);
-  font-family: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "noto sans", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px;
   box-sizing: border-box;
-  border-radius: 8px;
+  border-radius: 0;
   position: relative;
   z-index: 1;
 }
 
 html.dark .app-container {
-  background-color: var(--el-bg-color);
+  background-color: var(--color-bg-3);
+}
+
+.workspace-shell {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.chat-workspace {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--chat-panel-bg);
 }
 
 .main-area-wrapper {
@@ -5220,11 +5116,12 @@ html.dark .app-container {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--chat-panel-bg);
 }
 
 .chat-main {
   flex-grow: 1;
-  padding: 0 10px;
+  padding: 20px 20px 0;
   margin: 0;
   overflow-y: auto;
   scroll-behavior: auto !important;
@@ -5232,223 +5129,6 @@ html.dark .app-container {
   scrollbar-gutter: stable;
   will-change: scroll-position;
   transform: translateZ(0);
-}
-
-.unified-nav-sidebar {
-  position: absolute;
-  right: 12px;
-  top: 40%;
-  transform: translateY(-50%);
-  max-height: 60vh;
-  width: 24px;
-  z-index: 90;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-}
-
-/* 上下控制按钮组 */
-.nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  pointer-events: auto;
-  border-radius: 12px;
-  padding: 2px 0;
-  flex-shrink: 0;
-}
-
-.nav-mini-btn {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-
-  color: #2c2c2c;
-  background-color: transparent !important;
-  border: none;
-  box-shadow: none;
-
-  transition: all 0.2s ease;
-  font-size: 14px;
-  border-radius: 4px;
-
-  &:hover {
-    color: #000;
-    background-color: transparent;
-    transform: scale(1.2);
-  }
-}
-
-/* 中间时间轴区域 */
-.nav-timeline-area {
-  flex: 1;
-  position: relative;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  overflow: hidden;
-  flex-direction: column;
-  min-height: 0;
-  pointer-events: auto;
-}
-
-.timeline-track {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 2px;
-  background-color: var(--el-border-color-lighter);
-  transform: translateX(-1px);
-  z-index: -1;
-  border-radius: 2px;
-  opacity: 0.6;
-}
-
-.timeline-scroller {
-  width: 100%;
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-
-  scrollbar-width: none;
-}
-
-/* 消息节点 */
-.timeline-node-wrapper {
-  width: 100%;
-  height: 8px;
-  /* 减小高度，让横线更紧凑 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  position: relative;
-
-  /* 增加悬浮热区高度 */
-  padding: 2px 0;
-
-  &:hover .timeline-node {
-    transform: scaleX(1.5) scaleY(1.2);
-    /* 横向拉长效果 */
-  }
-
-  &:hover .node-tooltip {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-    visibility: visible;
-  }
-}
-
-.timeline-node {
-  /* 变成短横线 */
-  width: 10px;
-  height: 3px;
-  border-radius: 2px;
-  /* 微圆角 */
-
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: none;
-  border: none;
-  opacity: 0.6;
-  /* 默认半透明，不抢眼 */
-
-  &.user {
-    background-color: var(--el-color-primary);
-  }
-
-  &.assistant {
-    background-color: #000000;
-  }
-
-  /* 当前聚焦的消息：高亮、变宽、完全不透明 */
-  &.active {
-    opacity: 1;
-    width: 16px;
-    /* 激活时变长 */
-    box-shadow: 0 0 4px rgba(255, 215, 0, 0.5);
-  }
-}
-
-/* 悬浮提示框 (Tooltip) */
-.node-tooltip {
-  position: absolute;
-  right: 28px;
-  /* 点的左侧 */
-  top: 50%;
-  transform: translateY(-50%) translateX(10px) scale(0.9);
-  background-color: var(--el-color-black);
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  line-height: 1.2;
-  white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-  z-index: 100;
-}
-
-html.dark {
-  .nav-mini-btn {
-    background-color: #2c2c2c;
-    border-color: #4c4c4c;
-    color: #a3a6ad;
-
-    &:hover {
-      background-color: transparent;
-      color: #fff;
-    }
-
-    &.highlight-bottom {
-      background-color: rgba(64, 158, 255, 0.2);
-      color: #409eff;
-      border-color: #409eff;
-    }
-  }
-
-  /* 强制区分颜色 */
-  .timeline-node.user {
-    background-color: #409eff;
-    /* 用户：强制蓝色 */
-    border-color: #409eff;
-  }
-
-  .timeline-node.assistant {
-    background-color: #ffffff;
-    /* AI：强制纯白 */
-    border-color: #ffffff;
-  }
-
-  .timeline-track {
-    background-color: #4c4c4c;
-  }
-
-  .node-tooltip {
-    background-color: #E5EAF3;
-    color: #000;
-  }
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -5462,23 +5142,23 @@ html.dark {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--el-text-color-disabled, #c0c4cc);
+  background: var(--color-text-4);
   border-radius: 4px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--el-text-color-secondary, #909399);
+  background: var(--color-text-3);
 }
 
 html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #6b6b6b;
+  background: var(--color-border-4);
   background-clip: content-box;
 }
 
 html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #999;
+  background: var(--color-text-3);
   background-clip: content-box;
 }
 
@@ -5592,8 +5272,6 @@ body .app-container.has-bg {
   background: none !important;
 }
 
-.app-container.has-bg :deep(.title-bar),
-.app-container.has-bg :deep(.model-header),
 .app-container.has-bg :deep(.input-footer) {
   background-color: transparent !important;
 }
@@ -5610,62 +5288,6 @@ body .app-container.has-bg {
 
 html.dark .app-container.has-bg :deep(.chat-input-area-vertical) {
   background-color: rgba(30, 30, 30, 0.45) !important;
-}
-
-html.dark .app-container.has-bg :deep(.title-bar) {
-
-  /* 强制功能按钮（Pin, Top）和 Mac红绿灯图标变亮 */
-  .func-btn,
-  .traffic-icon {
-    color: rgba(255, 255, 255, 0.9) !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-    /* 增加文字阴影提高对比度 */
-  }
-
-  .func-btn:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-  }
-
-  /* 强制 Windows/Linux 窗口控制按钮变亮 */
-  .win-btn,
-  .linux-btn {
-    color: rgba(255, 255, 255, 0.9) !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  }
-
-  .win-btn:hover,
-  .linux-btn:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-  }
-
-  /* Windows 关闭按钮悬浮仍保持红色 */
-  .win-btn.close:hover {
-    background-color: #E81123 !important;
-    color: white !important;
-  }
-
-  /* Linux 关闭按钮悬浮仍保持红色 */
-  .linux-btn.close:hover {
-    background-color: #E95420 !important;
-    color: white !important;
-  }
-
-  /* 标题和文字颜色增强 */
-  .app-title,
-  .conversation-title,
-  .download-icon {
-    color: rgba(255, 255, 255, 0.95);
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-  }
-
-  .app-info-inner:hover,
-  .conversation-inner:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-  }
-
-  .divider-vertical {
-    background-color: rgba(255, 255, 255, 0.3);
-  }
 }
 
 .app-container.has-bg :deep(.el-dialog),
@@ -5732,29 +5354,8 @@ html.dark .app-container.has-bg :deep(.recording-status-text) {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-/* 模型选择药丸 */
-.app-container.has-bg :deep(.model-pill) {
-  background-color: rgba(255, 255, 255, 0.6);
-  backdrop-filter: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.app-container.has-bg :deep(.model-pill:hover) {
-  background-color: #fff;
-}
-
-html.dark .app-container.has-bg :deep(.model-pill) {
-  background-color: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-html.dark .app-container.has-bg :deep(.model-pill:hover) {
-  background-color: rgba(0, 0, 0, 0.7);
-}
-
 .app-container.has-bg :deep(.user-bubble .el-bubble-content) {
-  background-color: rgba(245, 244, 237, 0.7) !important;
-  /* 用户指定 */
+  background-color: rgba(var(--primary-1), 0.7) !important;
   backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.45);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);

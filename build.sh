@@ -1,32 +1,32 @@
 #!/bin/bash
 
-# 构建 frontend_main
+# 构建 frontend-main
 echo "=== build funchat frontend main ==="
-cd frontend_main
+cd frontend-main
 pnpm install
 if [ $? -ne 0 ]; then
-    echo "frontend_main install error"
+    echo "frontend-main install error"
     exit 1
 fi
 pnpm build
 if [ $? -ne 0 ]; then
-    echo "frontend_main build error"
+    echo "frontend-main build error"
     exit 1
 fi
 cd ..
 
-# 构建 frontend_window
+# 构建 frontend-window
 echo ""
-echo "=== build frontend_window ==="
-cd frontend_window
+echo "=== build frontend-window ==="
+cd frontend-window
 pnpm install
 if [ $? -ne 0 ]; then
-    echo "frontend_window install error"
+    echo "frontend-window install error"
     exit 1
 fi
 pnpm build
 if [ $? -ne 0 ]; then
-    echo "frontend_window build error"
+    echo "frontend-window build error"
     exit 1
 fi
 cd ..

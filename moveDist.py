@@ -85,18 +85,18 @@ if __name__ == "__main__":
     latest_version_dir = moveDist()
     print(f"目标版本目录: {latest_version_dir}\n")
 
-    # 1. 处理 main (frontend_main/dist -> v1.0.0/main)
+    # 1. 处理 main (frontend-main/dist -> v1.0.0/main)
     deleteFiles(latest_version_dir, "main")
     print("正在更新 main 文件夹...")
     main_target_dir = os.path.join(latest_version_dir, "main")
-    smart_copy(os.path.join("frontend_main", "dist"), main_target_dir)
+    smart_copy(os.path.join("frontend-main", "dist"), main_target_dir)
     print("main 文件夹更新完成\n")
 
-    # 2. 处理 window (frontend_window/dist -> v1.0.0/window)
+    # 2. 处理 window (frontend-window/dist -> v1.0.0/window)
     deleteFiles(latest_version_dir, "window")
     print("正在更新 window 文件夹...")
     window_target_dir = os.path.join(latest_version_dir, "window")
-    smart_copy(os.path.join("frontend_window", "dist"), window_target_dir)
+    smart_copy(os.path.join("frontend-window", "dist"), window_target_dir)
     print("window 文件夹更新完成\n")
 
     # 3. 处理 preload (backend/public -> v1.0.0/)
@@ -107,12 +107,12 @@ if __name__ == "__main__":
     smart_copy(os.path.join("backend", "public"), latest_version_dir)
     print("preload 相关文件更新完成\n")
 
-    # 4. 处理 fast_window (fast_window -> v1.0.0/fast_window)
-    deleteFiles(latest_version_dir, "fast_window")
-    print("正在更新 fast_window 文件夹...")
-    fast_window_target_dir = os.path.join(latest_version_dir, "fast_window")
-    smart_copy("fast_window", fast_window_target_dir)
-    print("fast_window 相关文件更新完成")
+    # 4. 处理 fast-window (fast-window -> utools/fast-window)
+    deleteFiles(latest_version_dir, "fast-window")
+    print("正在更新 fast-window 文件夹...")
+    fast_window_target_dir = os.path.join(latest_version_dir, "fast-window")
+    smart_copy("fast-window", fast_window_target_dir)
+    print("fast-window 相关文件更新完成")
 
     # 5. 在这几个目录下查.gitkeep文件
     for target_dir in [main_target_dir, window_target_dir, fast_window_target_dir]:

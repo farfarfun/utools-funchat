@@ -33,6 +33,36 @@ export const formatMessageText = (content) => {
     return textString.trim();
 };
 
+export const buildFilename = (value, extension) => {
+    const suffix = `.${extension}`;
+    const input = String(value ?? '').trim();
+    const basename = input.toLowerCase().endsWith(suffix)
+        ? input.slice(0, -suffix.length).trim()
+        : input;
+
+    if (!basename) throw new Error('文件名不能为空');
+    if (/[\\/:*?"<>|]/.test(basename)) throw new Error('文件名包含非法字符');
+
+    return { basename, filename: `${basename}${suffix}` };
+};
+
+export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+})[character]);
+
+export const withSessionMetadata = (files, readLocalFile) => Promise.all(files.map(async file => {
+    try {
+        const session = JSON.parse(await readLocalFile(file.path));
+        return { ...file, isChatSession: session?.funchat_history === true, agentCode: session?.CODE || '' };
+    } catch (_) {
+        return { ...file, isChatSession: false, agentCode: '' };
+    }
+}));
+
 /**
  * 安全修复并格式化工具参数 JSON
  * @param {string} jsonString 

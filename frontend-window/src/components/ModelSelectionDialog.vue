@@ -212,11 +212,6 @@ const handleClose = () => {
     border-color: var(--el-color-primary-light-5);
 }
 
-html.dark .model-item.is-active {
-    background-color: rgba(64, 158, 255, 0.15);
-    border-color: rgba(64, 158, 255, 0.3);
-}
-
 .model-info {
     flex-grow: 1;
     overflow: hidden;

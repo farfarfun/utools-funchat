@@ -1,7 +1,7 @@
 <script setup>
 import { ref, h, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue';
 import { ElFooter, ElRow, ElCol, ElText, ElDivider, ElButton, ElInput, ElMessage, ElTooltip, ElScrollbar, ElIcon, ElImage } from 'element-plus';
-import { Close, Check, Document, Delete, Collection, Picture } from '@element-plus/icons-vue';
+import { Close, Check, Document, Delete, Collection, Picture, Microphone, Monitor } from '@element-plus/icons-vue';
 
 // --- Props and Emits ---
 const prompt = defineModel('prompt');
@@ -14,6 +14,9 @@ const props = defineProps({
     ctrlEnterToSend: Boolean,
     voiceList: { type: Array, default: () => [] },
     layout: { type: String, default: 'horizontal' },
+    modelMap: { type: Object, default: () => ({}) },
+    model: { type: String, default: '' },
+    isMcpLoading: Boolean,
     isMcpActive: Boolean,
     allMcpServers: { type: Array, default: () => [] },
     activeMcpIds: { type: Array, default: () => [] },
@@ -22,7 +25,7 @@ const props = defineProps({
 });
 
 // 增加 toggle-mcp 事件
-const emit = defineEmits(['submit', 'cancel', 'clear-history', 'remove-file', 'upload', 'send-audio', 'open-mcp-dialog', 'pick-file-start', 'toggle-mcp', 'toggle-skill', 'open-skill-dialog']);
+const emit = defineEmits(['submit', 'cancel', 'clear-history', 'remove-file', 'upload', 'send-audio', 'open-mcp-dialog', 'pick-file-start', 'toggle-mcp', 'toggle-skill', 'open-skill-dialog', 'open-model-dialog']);
 
 // --- Refs and State ---
 const senderRef = ref(null);
@@ -71,6 +74,7 @@ const reasoningTooltipContent = computed(() => {
     const map = { default: '默认', low: '低', medium: '中', high: '高' };
     return `思考预算: ${map[tempReasoningEffort.value] || '默认'}`;
 });
+const modelLabel = computed(() => props.modelMap[props.model] || props.model || '选择模型');
 
 const isImage = (file) => {
     if (file.type && file.type.startsWith('image/')) return true;
@@ -631,8 +635,8 @@ defineExpose({ focus, senderRef });
                     <div class="option-selector-content">
                         <el-text tag="b" class="selector-label">选择音源</el-text>
                         <el-divider direction="vertical" />
-                        <el-button @click="startRecordingFromSource('microphone')" round>🎙️ 麦克风</el-button>
-                        <el-button @click="startRecordingFromSource('system')" round>💻 系统音频</el-button>
+                        <el-button :icon="Microphone" @click="startRecordingFromSource('microphone')" round>麦克风</el-button>
+                        <el-button :icon="Monitor" @click="startRecordingFromSource('system')" round>系统音频</el-button>
                     </div>
                 </div>
             </el-col>
@@ -842,6 +846,11 @@ defineExpose({ focus, senderRef });
                                     </el-icon>
                                 </el-button>
                             </el-tooltip>
+                            <button class="input-model-button" type="button" :disabled="isMcpLoading"
+                                :title="isMcpLoading ? 'MCP工具加载中...' : modelLabel"
+                                @click="emit('open-model-dialog')">
+                                {{ isMcpLoading ? '加载中...' : modelLabel }}
+                            </button>
                         </div>
                         <div class="action-buttons-right">
                             <template v-if="isRecording">
@@ -929,12 +938,26 @@ html.dark .drag-overlay {
 }
 
 .input-footer {
-    padding: 10px 5% 25px 5%;
-    height: auto;
+    padding: 0 !important;
+    height: 160px !important;
+    min-height: 160px;
+    max-height: 450px;
     width: 100%;
     flex-shrink: 0;
     z-index: 10;
-    background-color: transparent;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-2);
+    border-top: 1px solid var(--color-border-2);
+}
+
+.input-footer > .el-row:last-of-type {
+    min-height: 0;
+    flex: 1;
+}
+
+.input-footer > .el-row:last-of-type > .el-col {
+    height: 100%;
 }
 
 /* --- MCP Quick Select Styles --- */
@@ -1070,14 +1093,13 @@ html.dark .app-container.has-bg .mcp-quick-header {
 
 /* --- 深色模式适配 (Dark Mode) --- */
 html.dark .mcp-quick-item.active {
-    background-color: rgba(64, 158, 255, 0.15);
-    /* 使用透明主色，避免 light-9 在暗色下太亮 */
-    border-color: rgba(64, 158, 255, 0.2);
+    background-color: var(--color-primary-light-1);
+    border-color: var(--color-primary-light-2);
 }
 
 html.dark .mcp-quick-item.active:hover,
 html.dark .mcp-quick-item.active.highlighted {
-    background-color: rgba(64, 158, 255, 0.25);
+    background-color: var(--color-primary-light-2);
 }
 
 /* 1. 悬浮/高亮 */
@@ -1093,26 +1115,24 @@ html.dark .app-container.has-bg .mcp-quick-item.highlighted {
 
 /* 2. 激活状态 */
 .app-container.has-bg .mcp-quick-item.active {
-    /* 浅色背景下：淡淡的蓝色玻璃感 */
-    background-color: rgba(64, 158, 255, 0.15);
-    border-color: rgba(64, 158, 255, 0.2);
+    background-color: var(--color-primary-light-1);
+    border-color: var(--color-primary-light-2);
 }
 
 html.dark .app-container.has-bg .mcp-quick-item.active {
-    /* 深色背景下：稍亮的蓝色玻璃感 */
-    background-color: rgba(64, 158, 255, 0.25);
-    border-color: rgba(64, 158, 255, 0.3);
+    background-color: var(--color-primary-light-2);
+    border-color: var(--color-primary-light-3);
 }
 
 /* 3. 激活 + 悬浮/高亮 */
 .app-container.has-bg .mcp-quick-item.active:hover,
 .app-container.has-bg .mcp-quick-item.active.highlighted {
-    background-color: rgba(64, 158, 255, 0.25);
+    background-color: var(--color-primary-light-2);
 }
 
 html.dark .app-container.has-bg .mcp-quick-item.active:hover,
 html.dark .app-container.has-bg .mcp-quick-item.active.highlighted {
-    background-color: rgba(64, 158, 255, 0.35);
+    background-color: var(--color-primary-light-3);
 }
 
 .mcp-item-left {
@@ -1157,7 +1177,7 @@ html.dark .mcp-quick-item.highlighted .mcp-index-badge {
 
 html.dark .mcp-quick-item.active .mcp-index-badge {
     background-color: var(--el-color-primary);
-    color: #1a1a1a;
+    color: var(--color-bg-1);
 }
 
 .mcp-name {
@@ -1308,13 +1328,13 @@ html.dark .mcp-tag.type-tag {
 
 /* 深色模式下的文件卡片适配 */
 html.dark .custom-file-card {
-    background-color: #2c2c2c;
-    border-color: #4c4c4c;
+    background-color: var(--color-bg-4);
+    border-color: var(--color-border-2);
 }
 
 html.dark .custom-file-card:hover {
-    background-color: #363636;
-    border-color: #5c5c5c;
+    background-color: var(--color-bg-5);
+    border-color: var(--color-border-3);
 }
 
 /* 滚动条样式 */
@@ -1336,11 +1356,11 @@ html.dark .custom-file-card:hover {
 }
 
 html.dark .file-card-container::-webkit-scrollbar-thumb {
-    background-color: #4c4c4c;
+    background-color: var(--color-border-2);
 }
 
 html.dark .file-card-container::-webkit-scrollbar-thumb:hover {
-    background-color: #6b6b6b;
+    background-color: var(--color-border-3);
 }
 
 /* --- Waveform Display Area Styles --- */
@@ -1447,19 +1467,20 @@ html.dark .el-divider--vertical {
 
 /* --- Vertical Layout (Chat Input Area) --- */
 .chat-input-area-vertical {
+    height: 100%;
     display: flex;
     flex-direction: column;
-    background-color: var(--el-bg-color-input);
-    border-radius: 12px;
-    padding: 10px 12px;
-    border: 1px solid #E4E7ED;
+    background-color: var(--color-bg-2);
+    border-radius: 0;
+    padding: 12px 16px 10px;
+    border: 0;
     position: relative;
     /* 确保绝对定位的 mcp 列表相对此定位 */
 }
 
 html.dark .chat-input-area-vertical {
-    background-color: var(--el-bg-color-input);
-    border: 1px solid #414243;
+    background-color: var(--color-bg-2);
+    border: 0;
 }
 
 .chat-textarea-vertical {
@@ -1471,10 +1492,12 @@ html.dark .chat-input-area-vertical {
     background-color: transparent !important;
     box-shadow: none !important;
     border: none !important;
-    padding: 0;
+    height: 100% !important;
+    min-height: 0 !important;
+    padding: 5px 0 0;
     color: var(--el-text-color-primary);
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 150%;
     resize: none;
 }
 
@@ -1482,7 +1505,8 @@ html.dark .chat-input-area-vertical {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 8px;
+    min-height: 42px;
+    margin-top: 0;
     flex-shrink: 0;
 }
 
@@ -1510,25 +1534,57 @@ html.dark .chat-input-area-vertical {
 .chat-input-area-vertical .el-button {
     width: 32px;
     height: 32px;
-    background: none;
-    border: none;
+    border: 1px dashed transparent;
+    border-radius: 8px;
+    color: var(--color-icon);
+    background: transparent;
 }
 
 .chat-input-area-vertical .el-button:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    color: var(--color-text-2);
+    background-color: var(--color-fill-2);
 }
 
 .chat-input-area-vertical .action-buttons-left .el-button.is-active-special {
-    color: var(--el-color-warning);
+    color: rgb(var(--primary-6));
+    border-color: var(--color-border-2);
 }
 
 .chat-input-area-vertical .action-buttons-left .el-button:hover {
-    color: var(--text-on-accent);
-    background-color: var(--el-color-primary-light-8);
+    color: rgb(var(--primary-6));
+    background-color: var(--color-primary-light-1);
 }
 
 .chat-input-area-vertical .action-buttons-right .el-button:hover {
-    color: var(--text-on-accent);
+    color: rgb(var(--primary-6));
+}
+
+.input-model-button {
+    min-width: 32px;
+    max-width: 130px;
+    height: 32px;
+    padding: 0 8px;
+    overflow: hidden;
+    border: 1px dashed var(--color-border-2);
+    border-radius: 8px;
+    color: var(--color-text-3);
+    background: transparent;
+    font: inherit;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.input-model-button:hover {
+    color: rgb(var(--primary-6));
+    background: var(--color-fill-2);
+}
+
+.input-model-button:disabled {
+    opacity: .5;
+    cursor: wait;
 }
 
 /* --- Common Styles --- */
@@ -1560,12 +1616,12 @@ html.dark .chat-input-area-vertical {
 }
 
 html.dark :deep(.el-textarea__inner::-webkit-scrollbar-thumb) {
-    background: #6b6b6b;
+    background: var(--color-border-3);
     background-clip: content-box;
 }
 
 html.dark :deep(.el-textarea__inner::-webkit-scrollbar-thumb:hover) {
-    background: #999;
+    background: var(--color-border-4);
     background-clip: content-box;
 }
 

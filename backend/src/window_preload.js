@@ -29,6 +29,7 @@ const {
     parseFileObject,
     renameLocalFile,
     listJsonFiles,
+    readLocalFile,
 } = require('./file.js');
 
 const { 
@@ -144,6 +145,7 @@ window.api = {
     saveFile,
     renameLocalFile,
     listJsonFiles,
+    readLocalFile,
     writeLocalFile,
     handleCodeClick,
     sethotkey,

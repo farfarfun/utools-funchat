@@ -8,25 +8,25 @@ README = "./README.md"
 PRELOAD = "./backend/src/"
 
 MAIN = [
-    "./frontend_main/package.json",
-    "./frontend_main/vite.config.js",
-    "./frontend_main/index.html",
-    "./frontend_main/src/components/",
-    "./frontend_main/src/App.vue",
-    "./frontend_main/src/locales/",
+    "./frontend-main/package.json",
+    "./frontend-main/vite.config.js",
+    "./frontend-main/index.html",
+    "./frontend-main/src/components/",
+    "./frontend-main/src/App.vue",
+    "./frontend-main/src/locales/",
 ]
 
 WINDOW = [
-    "./frontend_window/package.json",
-    "./frontend_window/vite.config.js",
-    "./frontend_window/src/App.vue",
-    "./frontend_window/src/components/",
-    "./frontend_window/src/utils/",
-    "./frontend_window/src/assets/",
+    "./frontend-window/package.json",
+    "./frontend-window/vite.config.js",
+    "./frontend-window/src/App.vue",
+    "./frontend-window/src/components/",
+    "./frontend-window/src/utils/",
+    "./frontend-window/src/assets/",
 ]
 
 Copy_WINDOW = [
-    "./Fast_window/",
+    "./fast-window/",
 ]
 
 DOCUMENTS = ["./docs/"]
@@ -102,11 +102,11 @@ def get_summary():
         readme,
         "以下是预加载文件和主页面,preload，preload.js是主界面的预加载文件、window_preload.js是独立窗口界面的预加载文件，其它是其他工具文件",
         preload,
-        "以下是主页面的前端代码，在./frontend_main/目录下，是设置页面，其预加载文件为preload.js",
+        "以下是主页面的前端代码，在./frontend-main/目录下，是设置页面，其预加载文件为preload.js",
         main_text,
-        "以下是独立窗口的前端代码，在./frontend_window/目录下，是独立窗口文件，其预加载文件为window_preload.js",
+        "以下是独立窗口的前端代码，在./frontend-window/目录下，是独立窗口文件，其预加载文件为window_preload.js",
         window_text,
-        "以下是其他窗口的前端代码，在./Fast_window/目录下，是独立窗口文件，其预加载文件为fast_window_preload.js",
+        "以下是其他窗口的前端代码，在./fast-window/目录下，是独立窗口文件，其预加载文件为fast_window_preload.js",
         fast_window_text,
         "以下是相关说明文档，在./docs/目录下",
         docs,

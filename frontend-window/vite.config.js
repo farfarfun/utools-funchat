@@ -2,12 +2,10 @@ import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import vueDevTools from 'vite-plugin-vue-devtools'
 
 export default defineConfig({
   plugins: [
     vue(),
-    vueDevTools(),
   ],
   resolve: {
     alias: {
@@ -33,7 +31,6 @@ export default defineConfig({
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
         manualChunks: {
           'element-plus': ['element-plus', '@element-plus/icons-vue'],
-          'mermaid': ['mermaid'],
           'vendor-utils': ['webdav', 'dompurify', 'marked', 'recorder-core']
         }
       }

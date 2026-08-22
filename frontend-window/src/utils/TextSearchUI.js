@@ -1,4 +1,4 @@
-// ./frontend_window/src/utils/TextSearchUI.js
+// ./frontend-window/src/utils/TextSearchUI.js
 
 export default class TextSearchUI {
   constructor(options = {}) {
@@ -35,25 +35,25 @@ export default class TextSearchUI {
 
     const css = `
       :root {
-        --ts-bg: #ffffff;
-        --ts-text: #333333;
-        --ts-border: #e5e7eb;
-        --ts-hover: #f3f4f6;
+        --ts-bg: var(--color-bg-5);
+        --ts-text: var(--color-text-1);
+        --ts-border: var(--color-border-2);
+        --ts-hover: var(--color-fill-2);
         --ts-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        --ts-highlight: #ffeb3b;
-        --ts-highlight-current: #ff9800;
-        --ts-highlight-text: #000000;
+        --ts-highlight: rgb(var(--primary-2));
+        --ts-highlight-current: rgb(var(--primary-5));
+        --ts-highlight-text: var(--color-text-1);
       }
       
       [data-search-theme="dark"] {
-        --ts-bg: #2a2a2a;
-        --ts-text: #e5e7eb;
-        --ts-border: #4b5563;
-        --ts-hover: #374151;
+        --ts-bg: var(--color-bg-5);
+        --ts-text: var(--color-text-1);
+        --ts-border: var(--color-border-2);
+        --ts-hover: var(--color-fill-2);
         --ts-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-        --ts-highlight: #b45309;
-        --ts-highlight-current: #f59e0b;
-        --ts-highlight-text: #ffffff;
+        --ts-highlight: rgb(var(--primary-4));
+        --ts-highlight-current: rgb(var(--primary-6));
+        --ts-highlight-text: var(--color-text-1);
       }
 
       .text-search-container {
@@ -150,7 +150,7 @@ export default class TextSearchUI {
       mark.search-highlight.current {
         background-color: var(--ts-highlight-current);
         color: var(--ts-highlight-text);
-        outline: 2px solid rgba(255, 255, 255, 0.3);
+        outline: 2px solid rgb(var(--primary-2));
       }
     `;
 
