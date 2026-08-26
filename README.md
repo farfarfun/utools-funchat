@@ -1,0 +1,107 @@
+<div align="center">
+
+<img src="logo.png" alt="funchat" width="88">
+
+# funchat
+
+**把一屋子 AI 好友装进 uTools。**
+
+多角色切换 · 话题回溯 · 一键导出 · 本地优先
+
+[![License](https://img.shields.io/github/license/farfarfun/utools-funchat?color=0ca47f)](LICENSE)
+[![uTools](https://img.shields.io/badge/uTools-plugin-0ca47f)](https://u.tools)
+[![Vue](https://img.shields.io/badge/Vue-3-42b883)](https://vuejs.org)
+[![Tests](https://img.shields.io/badge/tests-50%20passing-0ca47f)](test)
+[![Stars](https://img.shields.io/github/stars/farfarfun/utools-funchat?style=flat&color=0ca47f)](https://github.com/farfarfun/utools-funchat/stargazers)
+
+</div>
+
+---
+
+呼出 uTools，敲一个 `funchat`，直接开聊 —— 不用切浏览器、不用登录、不用等网页加载。
+
+每个「AI 好友」是一套独立的角色设定、模型参数和聊天记录。翻译官只管翻译，代码审查员只管挑刺，周报助理记得你上周写了什么。想换个人聊，`Shift + ↓` 就行。
+
+## 它能做什么
+
+| | |
+|---|---|
+| **多 AI 好友** | 每个角色独立的提示词、模型、上下文长度和历史记录。置顶、拖拽排序、右键管理 |
+| **AI 市场** | 内置 12 个开箱即用的角色 —— 润色、审代码、写正则、调 SQL、模拟面试、费曼讲解……点一下就添加 |
+| **多模型接入** | uTools 内置 AI、OpenAI 兼容接口，或任意自定义 API 地址。角色不指定模型时自动跟随全局设置 |
+| **话题回溯** | 每个好友的历史话题独立存档，支持收藏、全文搜索、随时继续 |
+| **全局搜索** | 一个输入框同时搜好友和所有历史话题，直接跳到那次对话 |
+| **一键导出** | 整段会话导出 Markdown / HTML / PDF，单条消息存成 PNG 图片 |
+| **明暗主题** | 浅色、深色、跟随系统 |
+| **本地优先** | 会话和配置都在 uTools 本地数据库里，不经过任何第三方服务 |
+
+## 快捷键
+
+| 快捷键 | 作用 |
+|---|---|
+| `Ctrl` + `N` | 发起新话题 |
+| `Ctrl` + `B` | 收起 / 展开侧边栏 |
+| `Ctrl` + `H` | 打开话题记录 |
+| `Shift` + `↑` / `↓` | 上下切换 AI 好友 |
+
+## 安装
+
+需要 [Node.js](https://nodejs.org) 与 [pnpm](https://pnpm.io)（`corepack enable` 即可）。
+
+```bash
+git clone https://github.com/farfarfun/utools-funchat.git
+cd utools-funchat
+sh build.sh
+```
+
+构建会依次跑测试、校验清单、打包界面，最后把插件运行所需的文件输出到 `utool/`。
+
+在 uTools 中打开「插件应用市场 → 开发者工具 → 新建项目」，选择 `utool/plugin.json` 导入即可。
+
+## 首次配置
+
+打开插件后，在输入框上方点 🔑 图标：
+
+- **用 uTools 内置 AI** —— API 路线选「uTools AI」，不用填任何东西
+- **用自己的 Key** —— 选「私有 API 路线」，填入 API Key；转发接口再填上地址（如 `https://api.example.com`）
+
+> 地址会自动补全 `/v1/chat/completions`。若你的接口路径特殊，在地址末尾加 `#` 可阻止自动拼接。
+
+## 参与开发
+
+```bash
+pnpm install
+pnpm dev     # 浏览器预览，自带 uTools API 模拟层，数据存在 localStorage
+pnpm test    # 50 个测试，覆盖流式解析、存储层、会话状态机与数据兼容
+```
+
+```text
+src/
+├── features/     # 好友、聊天、搜索、导航、设置
+├── services/     # uTools 存储桥接、模型请求、SSE 解析
+├── stores/       # 会话状态与业务编排（单例 reactive，非 Pinia）
+├── styles/       # 全局色板
+└── preload.js    # uTools 预加载桥接
+public/           # 字体、头像与初始好友数据
+test/             # Node.js 原生测试，无需浏览器
+app/              # 构建产物，不纳入 Git
+```
+
+所有业务修改都在 `src/` 里完成，`app/` 由构建覆盖。
+
+欢迎提 [Issue](https://github.com/farfarfun/utools-funchat/issues) 和 PR —— 修 bug、加角色、改界面都可以。给市场加一个好用的角色，是最轻量的贡献方式：编辑 `src/features/navigation/market-agents.js` 即可。
+
+## 说明
+
+- Token 数是本地按可见文本估算的，用来快速判断上下文规模，不等同于服务商账单里的精确用量。
+- 会话与 API Key 存在 uTools 本地数据库中。请勿在共享设备上保存重要凭据。
+
+## 致谢
+
+界面与交互设计致谢 uTools 插件 [ChatGPT.好友](https://www.u-tools.cn/plugins/detail/ChatGPT.%E5%A5%BD%E5%8F%8B/)。
+
+funchat 是 [farfarfun](https://github.com/farfarfun) 的开源项目之一 —— 我们做实用的小工具和 AI 应用。觉得好用的话，点个 Star ⭐
+
+## License
+
+[MIT](LICENSE)

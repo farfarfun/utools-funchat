@@ -1,0 +1,23 @@
+name: 💡 功能建议
+description: 想让 funchat 多做点什么
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题
+      description: 先说场景，再说方案 —— 这样更容易讨论出好设计
+      placeholder: 每次问翻译都要手动加「请翻译」前缀，很烦
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你设想的做法
+      placeholder: 给角色加一个自动前缀设置
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: 参与意愿
+      options:
+        - label: 我愿意提 PR 实现它

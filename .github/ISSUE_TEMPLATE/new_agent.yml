@@ -1,0 +1,34 @@
+name: 🤖 投稿一个 AI 角色
+description: 给 AI 市场加一个好用的角色
+labels: [agent]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        想直接提 PR 的话，编辑 `src/features/navigation/market-agents.js` 就行，照着现有条目写一条即可。
+  - type: input
+    id: nickname
+    attributes:
+      label: 角色名
+      placeholder: 会议纪要员
+    validations:
+      required: true
+  - type: input
+    id: info
+    attributes:
+      label: 一句话介绍
+      placeholder: 从记录里提取决议和待办
+    validations:
+      required: true
+  - type: textarea
+    id: prompt
+    attributes:
+      label: 角色指令（system prompt）
+      description: 请贴上你实际用过、效果不错的版本
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: 分类
+      options: [写作, 开发, 学习, 效率, 生活]
