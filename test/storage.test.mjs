@@ -27,13 +27,12 @@ test('keeps an empty role prompt empty instead of falling back to its ciphertext
   assert.equal(agent.params.messages[0].content, '');
 });
 
-test('pins agents ahead of the rest whether is_top is false or missing entirely', async () => {
+test('loadAgents returns every stored agent regardless of pin state', async () => {
   resetDatabase();
-  host.dbStorage.setItem('sortAiIds', ['ai@a', 'ai@b', 'ai@c']);
   saveAgent(makeAgent('ai@a'));
   saveAgent(makeAgent('ai@b', { is_top: false }));
   saveAgent(makeAgent('ai@c', { is_top: true }));
-  assert.deepEqual((await loadAgents()).map((agent) => agent._id), ['ai@c', 'ai@a', 'ai@b']);
+  assert.deepEqual(new Set((await loadAgents()).map((agent) => agent._id)), new Set(['ai@a', 'ai@b', 'ai@c']));
 });
 
 test('round-trips history messages and sorts the newest topic first', () => {

@@ -50,13 +50,7 @@ export async function loadAgents() {
     documents = host.db.allDocs('ai@') || [];
   }
 
-  const order = host.dbStorage.getItem('sortAiIds') || [];
-  return documents.map(decodeAgent).sort((left, right) => {
-    if (Boolean(left.is_top) !== Boolean(right.is_top)) return left.is_top ? -1 : 1;
-    const leftIndex = order.indexOf(left._id);
-    const rightIndex = order.indexOf(right._id);
-    return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex);
-  });
+  return documents.map(decodeAgent);
 }
 
 export function saveAgent(agent) {
@@ -99,6 +93,7 @@ export function saveHistory({ id, title, messages, favorite = false }) {
   document.messages = encrypt(JSON.stringify(messages), id);
   document.createdDate ||= now;
   document.updatedDate = now;
+  document.updatedAt = Date.now();
   document.isFavorite = favorite;
   putDocument(document);
 }

@@ -87,9 +87,24 @@ function applyTheme() {
   body.classList.toggle('dark', state.settings.dark);
 }
 
+function agentActivityAt(agent) {
+  const own = Number(agent.created_at) || Number(String(agent._id).slice(3)) || 0;
+  return state.histories.reduce((latest, history) => (
+    history.agentId === agent._id ? Math.max(latest, history.updatedAt || history.sortKey || 0) : latest
+  ), own);
+}
+
+function sortAgents() {
+  state.agents.sort((left, right) => {
+    if (Boolean(left.is_top) !== Boolean(right.is_top)) return left.is_top ? -1 : 1;
+    return agentActivityAt(right) - agentActivityAt(left);
+  });
+}
+
 async function init() {
   state.agents = await loadAgents();
   state.histories = loadHistories();
+  sortAgents();
   state.currentAgent = state.agents[0] || null;
   state.messages = [];
   presetHidden = Boolean(state.currentAgent);
@@ -150,7 +165,8 @@ function addAgent(values) {
     created_at: String(Date.now()),
   };
   saveAgent(agent);
-  state.agents.unshift(agent);
+  state.agents.push(agent);
+  sortAgents();
   selectAgent(agent);
 }
 
@@ -220,8 +236,7 @@ function deleteAgent(agent) {
 function togglePin(agent) {
   agent.is_top = !agent.is_top;
   saveAgent(agent);
-  state.agents.sort((left, right) => Number(right.is_top) - Number(left.is_top));
-  globalThis.utools.dbStorage.setItem('sortAiIds', state.agents.map((item) => item._id));
+  sortAgents();
 }
 
 function newConversation() {
@@ -292,6 +307,7 @@ function persistCurrentConversation() {
     favorite: existing?.isFavorite,
   });
   state.histories = loadHistories();
+  sortAgents();
 }
 
 function openHistory(history) {
@@ -310,6 +326,7 @@ function openHistory(history) {
 function deleteHistory(history) {
   removeHistory(history._id);
   state.histories = loadHistories();
+  sortAgents();
   if (state.currentAgent?.chatId === history._id) newConversation();
 }
 

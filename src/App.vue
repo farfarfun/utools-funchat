@@ -50,11 +50,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleShortcut));
     <div v-if="store.state.error && !store.state.agents.length" class="fatal-error" role="alert">{{ store.state.error }}</div>
     <SideMenu v-if="store.state.view !== 'chat' || !store.state.sidebarCollapsed"
       :active="store.state.view" @navigate="store.state.view = $event" />
-    <template v-if="store.state.view === 'chat'">
-      <AgentList />
-      <ChatView />
-    </template>
-    <SettingsView v-else-if="store.state.view === 'settings'" />
-    <FeatureView v-else :view="store.state.view" />
+    <Transition name="page" mode="out-in">
+      <div class="view-pane" :key="store.state.view">
+        <template v-if="store.state.view === 'chat'">
+          <AgentList />
+          <ChatView />
+        </template>
+        <SettingsView v-else-if="store.state.view === 'settings'" />
+        <FeatureView v-else :view="store.state.view" />
+      </div>
+    </Transition>
   </div>
 </template>

@@ -104,6 +104,7 @@ button {
   border-radius: 8px;
   color: var(--color-icon);
   background: transparent;
+  transition: background .15s ease, color .15s ease;
 }
 button:hover { background: var(--color-fill-2); color: var(--color-text-1); }
 button.active { color: var(--color-primary); background: var(--color-primary-light-1); }

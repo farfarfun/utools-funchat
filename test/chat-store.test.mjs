@@ -196,11 +196,35 @@ test('un_stream turns off streaming in the request', async () => {
 
 test('cycleAgent walks the list and wraps around', async () => {
   await setup({ agents: 3 });
-  assert.equal(store.state.currentAgent._id, 'ai@1');
+  // 没有任何会话记录时，好友按创建顺序倒序排列（最近创建的在前）。
+  assert.equal(store.state.currentAgent._id, 'ai@3');
   store.cycleAgent(1);
   assert.equal(store.state.currentAgent._id, 'ai@2');
   store.cycleAgent(-1);
-  assert.equal(store.state.currentAgent._id, 'ai@1');
+  assert.equal(store.state.currentAgent._id, 'ai@3');
   store.cycleAgent(-1);
-  assert.equal(store.state.currentAgent._id, 'ai@3', '应回绕到末尾');
+  assert.equal(store.state.currentAgent._id, 'ai@1', '应回绕到末尾');
+});
+
+test('sends agents to the top of the list when a new message is sent to them', async () => {
+  await setup({ agents: 3 });
+  assert.deepEqual(store.state.agents.map((agent) => agent._id), ['ai@3', 'ai@2', 'ai@1']);
+
+  store.selectAgent(store.state.agents.find((agent) => agent._id === 'ai@1'));
+  host.ai = replyWith('好的');
+  await store.send('你好');
+
+  assert.deepEqual(store.state.agents.map((agent) => agent._id), ['ai@1', 'ai@3', 'ai@2'], '刚互动过的好友应排到最前面');
+});
+
+test('pinned agents stay ahead of everyone else regardless of recent activity', async () => {
+  await setup({ agents: 3 });
+  const oldest = store.state.agents.find((agent) => agent._id === 'ai@1');
+  store.togglePin(oldest);
+
+  store.selectAgent(store.state.agents.find((agent) => agent._id === 'ai@2'));
+  host.ai = replyWith('好的');
+  await store.send('你好');
+
+  assert.deepEqual(store.state.agents.map((agent) => agent._id), ['ai@1', 'ai@2', 'ai@3'], '置顶好友应始终排在最前');
 });

@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
 .agents-scroll { flex: 1; margin-bottom: 3px; overflow-y: auto; }
 .agents-scroll { scrollbar-width: none; }
 .agents-scroll::-webkit-scrollbar { width: 0; height: 0; }
-.agent-item { position: relative; height: 60px; padding: 0 16px; display: flex; align-items: center; cursor: pointer; }
+.agent-item { position: relative; height: 60px; padding: 0 16px; display: flex; align-items: center; cursor: pointer; transition: background .15s ease; }
 .agent-item:hover, .agent-item.active { background: var(--color-fill-2); }
 .agent-copy { min-width: 0; margin-left: 12px; display: flex; flex: 1; flex-direction: column; }
 .agent-copy b { overflow: hidden; font-size: 13px; font-weight: 500; line-height: 1.5715; color: var(--color-text-2); text-overflow: ellipsis; white-space: nowrap; }
