@@ -80,14 +80,26 @@ src/
 ├── features/     # 好友、聊天、搜索、导航、设置
 ├── services/     # uTools 存储桥接、模型请求、SSE 解析
 ├── stores/       # 会话状态与业务编排（单例 reactive，非 Pinia）
-├── styles/       # 全局色板
-└── preload.js    # uTools 预加载桥接
+└── styles/       # 全局色板
 public/           # 字体、头像与初始好友数据
 test/             # Node.js 原生测试，无需浏览器
-app/              # 构建产物，不纳入 Git
+utools/           # uTools 插件目录，也是打包目录（不含 .git）
+├── plugin.json   # 插件清单
+├── preload.js    # uTools 预加载桥接
+├── logo.png
+└── dist/         # 构建产物，不纳入 Git
 ```
 
-所有业务修改都在 `src/` 里完成，`app/` 由构建覆盖。
+所有业务修改都在 `src/` 里完成，`utools/dist/` 由构建覆盖。
+
+构建与导入：
+
+```bash
+sh build.sh
+# 完成后在 uTools 开发者工具中导入 utools/plugin.json
+```
+
+> 打包目录是 `utools/` 而不是仓库根目录——uTools 会把 `plugin.json` 所在目录整个打包，放在根目录会把 `.git/` 一并打进去。
 
 欢迎提 [Issue](https://github.com/farfarfun/utools-funchat/issues) 和 PR —— 修 bug、加角色、改界面都可以。给市场加一个好用的角色，是最轻量的贡献方式：编辑 `src/features/navigation/market-agents.js` 即可。
 

@@ -2,7 +2,7 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-OUTPUT_DIR="$ROOT_DIR/utool"
+PLUGIN_DIR="$ROOT_DIR/utools"          # 打包目录，不含 .git
 cd "$ROOT_DIR"
 
 command -v node >/dev/null || { echo "error: Node.js is required" >&2; exit 1; }
@@ -13,17 +13,17 @@ pnpm install --frozen-lockfile
 
 echo "=== test source ==="
 pnpm test
-node --check src/preload.js
-node -e "JSON.parse(require('fs').readFileSync('plugin.json', 'utf8'))"
+node --check "$PLUGIN_DIR/preload.js"
+node -e "JSON.parse(require('fs').readFileSync('$PLUGIN_DIR/plugin.json', 'utf8'))"
 
 echo "=== build Vue application ==="
+rm -rf -- "$PLUGIN_DIR/dist"
 pnpm build
 
-rm -rf -- "$OUTPUT_DIR"
-mkdir -p "$OUTPUT_DIR/src"
-cp -R app logo.png plugin.json "$OUTPUT_DIR/"
-cp src/preload.js "$OUTPUT_DIR/src/preload.js"
+echo "=== verify artifacts ==="
+test -f "$PLUGIN_DIR/dist/index.html"
+test -f "$PLUGIN_DIR/preload.js"
+test -f "$PLUGIN_DIR/logo.png"
+test ! -e "$PLUGIN_DIR/.git" || { echo "error: utools/ 内不应存在 .git" >&2; exit 1; }
 
-test -f "$OUTPUT_DIR/app/index.html"
-test -f "$OUTPUT_DIR/src/preload.js"
-echo "uTools plugin ready: $OUTPUT_DIR/plugin.json"
+echo "uTools plugin ready: $PLUGIN_DIR/plugin.json"

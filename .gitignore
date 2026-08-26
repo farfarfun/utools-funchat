@@ -7,8 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 .DS_Store
-/app/
-dist
+/utools/dist/
 dist-ssr
 coverage
 *.local
@@ -36,7 +35,6 @@ __pycache__
 result.md
 result.txt
 ToDoList.md
-/utool/
 
 # 第三方插件分发包（仅本地参考，勿入库）
 refer/*.upxs

@@ -21,14 +21,14 @@ const openChatWindow = () => {
   // workAreaSize 已扣除菜单栏与 Dock，按它取 70% 不会被系统 UI 遮挡
   const { width, height } = utools.getPrimaryDisplay().workAreaSize;
   chatWindow = utools.createBrowserWindow(
-    'app/index.html',
+    'dist/index.html',
     {
       width: Math.round(width * WINDOW_RATIO),
       height: Math.round(height * WINDOW_RATIO),
       center: true,
       show: false,
       title: 'funchat',
-      webPreferences: { preload: 'src/preload.js' },
+      webPreferences: { preload: 'preload.js' },
     },
     () => {
       chatWindow.show();
