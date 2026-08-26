@@ -25,7 +25,15 @@ function messageKey(message, index) {
 
 function saveApiSetup() {
   if (!apiSetup.apiKey.trim() && !apiSetup.baseUrl.trim()) return;
-  store.updateSettings({ ...store.state.settings, provider: 'openai', apiKey: apiSetup.apiKey.trim(), baseUrl: apiSetup.baseUrl.trim() });
+  // 走线路系统，否则这里存的配置在「API路线管理」里看不见
+  store.saveApiRoute({
+    id: '',
+    name: '默认线路',
+    provider: 'openai',
+    apiKey: apiSetup.apiKey.trim(),
+    baseUrl: apiSetup.baseUrl.trim(),
+    streamMode: 'client',
+  });
 }
 
 watch(() => store.state.messages.at(-1)?.content, async () => {

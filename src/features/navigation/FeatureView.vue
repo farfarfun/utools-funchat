@@ -175,10 +175,12 @@ function openUrl(url) {
 .market-search { height: 36px; min-width: 0; padding: 0 12px; display: flex; flex: 1; align-items: center; border-radius: 12px; background: var(--color-fill-2); }
 .market-search i { width: 14px; height: 14px; margin-right: 4px; color: var(--color-text-3); font-size: 14px; line-height: 14px; }
 .market-search input { min-width: 0; height: 34px; padding: 6px 0; flex: 1; border: 0; outline: 0; background: transparent; line-height: 22px; }
-.market-tabs { width: 80%; height: 44px; margin: 0 auto; display: flex; align-items: center; gap: 24px; }
-.market-tabs button { position: relative; height: 44px; color: var(--color-text-2); font-size: 14px; }
-.market-tabs button.active { color: var(--color-primary); font-weight: 500; }
-.market-tabs button.active::after { content: ""; position: absolute; right: 0; bottom: 8px; left: 0; height: 2px; border-radius: 1px; background: var(--color-primary); }
+/* 15 个分类横排必然溢出，改成换行；多行下用胶囊底色比下划线更容易定位当前项 */
+.market-tabs { width: 80%; min-height: 44px; margin: 0 auto; padding: 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.market-tabs button { height: 28px; padding: 0 12px; border-radius: 14px; color: var(--color-text-2); font-size: 13px; line-height: 28px; }
+.market-tabs button:hover { background: var(--color-fill-1); }
+.market-tabs button.active { color: #fff; background: var(--color-primary); font-weight: 500; }
+.market-tabs button.active:hover { background: var(--color-primary); }
 .market-grid { width: 80%; margin: 0 auto; padding: 20px 0 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .market-card { position: relative; padding: 16px; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 4px 12px; border: 1px solid var(--color-border-2); border-radius: 12px; background: var(--color-bg-2); }
 .market-card:hover { border-color: var(--color-primary); box-shadow: 0 4px 10px #0000000f; }

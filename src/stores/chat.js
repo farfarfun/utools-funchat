@@ -10,6 +10,8 @@ import {
   saveAgent,
   saveHistory,
   saveSettings,
+  createRouteId,
+  syncActiveRoute,
 } from '../services/storage.js';
 import { estimateConversationTokens, messageText } from '../features/chat/token-count.js';
 import { writeOptionalParams } from '../features/agents/agent-form.js';
@@ -338,8 +340,31 @@ async function retryMessage(index) {
 
 function updateSettings(next) {
   Object.assign(state.settings, next);
+  // 线路可能被切换或删除，镜像字段要跟着走，否则 streamChat 还在用旧地址
+  syncActiveRoute(state.settings);
   applyTheme();
   saveSettings(state.settings);
+}
+
+function saveApiRoute(route) {
+  const routes = state.settings.apiRoutes || [];
+  const index = routes.findIndex((item) => item.id === route.id);
+  if (index < 0) routes.push({ ...route, id: route.id || createRouteId() });
+  else routes[index] = { ...routes[index], ...route };
+  updateSettings({ apiRoutes: routes, activeRouteId: route.id || routes.at(-1).id });
+}
+
+function removeApiRoute(routeId) {
+  const routes = (state.settings.apiRoutes || []).filter((route) => route.id !== routeId);
+  // 删掉的正好是当前线路时，把 activeRouteId 清空，让 syncActiveRoute 退回第一条
+  const activeRouteId = state.settings.activeRouteId === routeId ? '' : state.settings.activeRouteId;
+  Object.assign(state.settings, { apiRoutes: routes, activeRouteId });
+  if (!routes.length) Object.assign(state.settings, { baseUrl: '', apiKey: '', provider: 'openai' });
+  updateSettings({});
+}
+
+function selectApiRoute(routeId) {
+  updateSettings({ activeRouteId: routeId });
 }
 
 const tokenCount = computed(() => estimateConversationTokens(state.messages));
@@ -366,5 +391,8 @@ export function useChatStore() {
     deleteMessage,
     retryMessage,
     updateSettings,
+    saveApiRoute,
+    removeApiRoute,
+    selectApiRoute,
   };
 }

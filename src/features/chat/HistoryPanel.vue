@@ -4,16 +4,39 @@ import { useChatStore } from '../../stores/chat.js';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import AgentAvatar from '../agents/AgentAvatar.vue';
 import { matchesHistoryQuery } from '../search/search.js';
+import { estimateConversationTokens } from './token-count.js';
 
 const store = useChatStore();
 const confirmDialog = ref();
 const query = ref('');
 const tab = ref('history');
 
-const filtered = computed(() => store.agentHistories.value.filter((history) => {
-  if (tab.value === 'history' ? history.isFavorite : !history.isFavorite) return false;
-  return matchesHistoryQuery(history, query.value);
-}));
+// 同一条话题只在内容变化后才重算，避免长列表反复遍历全部消息
+const tokenCache = new Map();
+function historyTokens(history) {
+  const key = `${history._id}@${history.updatedDate || ''}`;
+  let cached = tokenCache.get(key);
+  if (cached === undefined) {
+    cached = estimateConversationTokens(history.messages || []);
+    tokenCache.set(key, cached);
+  }
+  return cached;
+}
+
+function formatTokens(count) {
+  if (count >= 10000) return `${(count / 1000).toFixed(0)}k`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return String(count);
+}
+
+const filtered = computed(() => store.agentHistories.value
+  .filter((history) => {
+    if (tab.value === 'history' ? history.isFavorite : !history.isFavorite) return false;
+    return matchesHistoryQuery(history, query.value);
+  })
+  .map((history) => ({ history, tokens: historyTokens(history) })));
+
+const totalTokens = computed(() => filtered.value.reduce((sum, item) => sum + item.tokens, 0));
 
 function formatDate(value) {
   const date = new Date(value);
@@ -28,7 +51,7 @@ async function deleteSelectedHistory(history) {
 
 async function clearHistories() {
   if (!filtered.value.length || !await confirmDialog.value.open({ title: '清空话题', message: '确定清空全部话题吗？', confirmText: '清空' })) return;
-  for (const history of [...filtered.value]) store.deleteHistory(history);
+  for (const item of [...filtered.value]) store.deleteHistory(item.history);
 }
 </script>
 
@@ -40,7 +63,10 @@ async function clearHistories() {
           <AgentAvatar :agent="store.state.currentAgent" :size="42" />
           <span class="history-copy">
             <b>{{ store.state.currentAgent?.nickname || '小助理' }}</b>
-            <small>{{ tab === 'history' ? `最近60#话题 (${filtered.length}条)` : `已收藏话题 (${filtered.length}条)` }}</small>
+            <small>
+              {{ tab === 'history' ? `最近60#话题 (${filtered.length}条)` : `已收藏话题 (${filtered.length}条)` }}
+              <template v-if="totalTokens"> · 共 {{ formatTokens(totalTokens) }} tokens</template>
+            </small>
           </span>
           <button v-if="tab === 'history' && filtered.length" class="clear-button" type="button" @click="clearHistories">清空话题</button>
         </div>
@@ -56,7 +82,7 @@ async function clearHistories() {
       </nav>
 
       <div class="history-list">
-        <article v-for="history in filtered" :key="history._id" tabindex="0" @click="store.openHistory(history)" @keydown.enter="store.openHistory(history)">
+        <article v-for="{ history, tokens } in filtered" :key="history._id" tabindex="0" @click="store.openHistory(history)" @keydown.enter="store.openHistory(history)">
           <div class="history-row">
             <i class="iconfont icon-chat history-chat" aria-hidden="true"></i>
             <b>{{ history.title || '无标题' }}</b>
@@ -70,7 +96,10 @@ async function clearHistories() {
             </div>
             <i class="iconfont icon-arrow-right history-arrow" aria-hidden="true"></i>
           </div>
-          <small>{{ formatDate(history.createdDate) }}</small>
+          <small>
+            {{ formatDate(history.createdDate) }}
+            <span class="history-tokens" :title="`约 ${tokens.toLocaleString()} tokens`">{{ formatTokens(tokens) }} tokens</span>
+          </small>
         </article>
         <div v-if="!filtered.length" class="history-empty">
           <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="m24 4 16 9v21l-16 10L8 34V13zM8 13l16 10 16-10M24 23v21" stroke="currentColor" stroke-width="2"></path></svg>
@@ -106,7 +135,8 @@ article:hover, article:focus-visible { outline: 0; background: var(--color-fill-
 .history-row { height: 22px; display: flex; align-items: center; }
 .history-chat { margin-right: 8px; color: var(--color-icon); }
 .history-row b { min-width: 0; flex: 1; overflow: hidden; color: var(--color-text-1); font-size: 14px; font-weight: 500; line-height: 22px; text-overflow: ellipsis; white-space: nowrap; }
-article > small { display: block; margin-top: 3px; color: var(--color-text-3); font-size: 12px; line-height: 18px; }
+article > small { display: flex; align-items: center; gap: 8px; margin-top: 3px; color: var(--color-text-3); font-size: 12px; line-height: 18px; }
+.history-tokens { padding: 0 6px; border-radius: 9px; background: var(--color-fill-2); font-variant-numeric: tabular-nums; }
 .history-actions { display: none; align-items: center; flex: 0 0 auto; }
 .history-actions button { width: 28px; height: 28px; color: var(--color-icon); }
 .history-actions button:hover { color: var(--color-primary); }
