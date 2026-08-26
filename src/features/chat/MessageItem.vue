@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { host } from '../../services/utools.js';
 import AgentAvatar from '../agents/AgentAvatar.vue';
 import { renderMarkdown } from './markdown.js';
-import { isLongMessage, saveElementImage } from './message-tools.js';
+import { copyElementImage, isLongMessage, saveElementImage } from './message-tools.js';
 import { messageText } from './token-count.js';
 
 const props = defineProps({
@@ -16,6 +16,7 @@ const props = defineProps({
 const emit = defineEmits(['delete', 'retry']);
 const root = ref();
 const copied = ref(false);
+const imageCopied = ref(false);
 const exporting = ref(false);
 const long = computed(() => isLongMessage(messageText(props.message)));
 const collapsed = ref(long.value);
@@ -40,17 +41,30 @@ async function copy() {
   setTimeout(() => { copied.value = false; }, 1000);
 }
 
-async function exportImage() {
+// 出图前必须先展开，否则折叠的长消息只会截到一半
+async function withExpanded(action) {
   exporting.value = true;
   const previous = collapsed.value;
   collapsed.value = false;
   await nextTick();
   try {
-    await saveElementImage(root.value);
+    await action();
   } finally {
     collapsed.value = previous;
     exporting.value = false;
   }
+}
+
+async function exportImage() {
+  await withExpanded(() => saveElementImage(root.value));
+}
+
+async function copyImage() {
+  await withExpanded(async () => {
+    await copyElementImage(root.value);
+    imageCopied.value = true;
+    setTimeout(() => { imageCopied.value = false; }, 1000);
+  });
 }
 </script>
 
@@ -65,6 +79,15 @@ async function exportImage() {
       <div v-if="index >= 0" class="message-actions">
         <button type="button" :title="copied ? '已复制' : '复制'" :aria-label="copied ? '已复制' : '复制'" @click="copy">
           <i class="iconfont" :class="copied ? 'icon-success' : 'icon-copy'" aria-hidden="true"></i>
+        </button>
+        <button type="button" :title="imageCopied ? '图片已复制' : '复制为图片'" :aria-label="imageCopied ? '图片已复制' : '复制为图片'" :disabled="exporting" @click="copyImage">
+          <i v-if="imageCopied" class="iconfont icon-success" aria-hidden="true"></i>
+          <!-- 图标字体里没有语义明确的图片图标，内联 SVG 保证画出来确实是「图片」 -->
+          <svg v-else class="action-svg" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1.75" stroke="currentColor" stroke-width="1.3" />
+            <circle cx="6" cy="6.6" r="1.05" fill="currentColor" />
+            <path d="M3 11.2 6.1 8.5l2.2 1.9 2.2-2.4 2.5 2.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
         <button type="button" title="保存此条消息为图片" aria-label="保存此条消息为图片" :disabled="exporting" @click="exportImage">
           <i class="iconfont icon-file" aria-hidden="true"></i>
@@ -104,6 +127,8 @@ async function exportImage() {
 .message-actions button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--color-icon); }
 .message-actions button:hover { color: var(--color-primary); background: var(--color-bg-2); }
 .message-actions button:disabled { opacity: .45; }
+/* 与相邻 iconfont 图标视觉等重 */
+.action-svg { width: 14px; height: 14px; }
 .rotated { transform: rotate(180deg); }
 .has-error .prose-chat { border: 1px solid rgba(243, 94, 81, .35); color: #d94b40; }
 .message-images { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }

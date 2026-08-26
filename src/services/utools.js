@@ -56,7 +56,12 @@ function createBrowserUtools() {
     onPluginEnter: (callback) => callback({ code: 'funchat', type: 'text', payload: '' }),
     onPluginDetach: () => {},
     copyText: (text) => navigator.clipboard?.writeText(text),
-    copyImage: () => {},
+    // 浏览器调试时也让「复制为图片」真的能用，而不是静默失败
+    copyImage: async (dataUrl) => {
+      if (typeof ClipboardItem !== 'function' || !navigator.clipboard?.write) return;
+      const blob = await (await fetch(dataUrl)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    },
     getPath: () => '',
     showSaveDialog: () => null,
     shellOpenExternal: (url) => window.open(url, '_blank', 'noopener'),

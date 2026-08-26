@@ -36,14 +36,54 @@ function saveApiSetup() {
   });
 }
 
+// 距底多少像素以内仍算「贴着底」。留一点余量，避免行高抖动导致误判为用户已滚开。
+const STICK_THRESHOLD = 60;
+const stick = ref(true);
+
+function atBottom() {
+  const el = scroll.value;
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;
+}
+
+function onScroll() {
+  stick.value = atBottom();
+}
+
+// 容器上有 scroll-behavior: smooth。程序化滚动若走平滑动画，
+// 中途触发的 scroll 事件位置离底尚远，会把 stick 误判成 false 而中断跟随，
+// 所以自动跟随一律用 instant；只有用户点「回到底部」才值得平滑。
+function jumpToBottom(behavior = 'instant') {
+  const el = scroll.value;
+  if (!el) return;
+  el.scrollTo({ top: el.scrollHeight, behavior });
+  stick.value = true;
+}
+
+function scrollToBottom() {
+  jumpToBottom('smooth');
+}
+
+// 流式回复期间只在用户贴着底时才跟随，
+// 否则他往上翻看上文会被每个新 token 拽回底部。
 watch(() => store.state.messages.at(-1)?.content, async () => {
+  if (!stick.value) return;
   await nextTick();
-  if (scroll.value) scroll.value.scrollTop = scroll.value.scrollHeight;
+  jumpToBottom();
+});
+
+// 自己刚发出消息，无论此前滚到哪都回到底部
+watch(() => store.state.messages.length, async (next, previous) => {
+  if (next <= previous || store.state.messages.at(-1)?.role !== 'user') return;
+  await nextTick();
+  jumpToBottom();
 });
 
 watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], async () => {
   await nextTick();
   if (scroll.value) scroll.value.scrollTop = 0;
+  // 按实际位置判定：短会话本来就在底部则继续跟随，长会话停在顶部则不跟随
+  stick.value = atBottom();
 });
 
 </script>
@@ -51,7 +91,10 @@ watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], a
 <template>
   <main class="chat-view">
     <ChatExportMenu />
-    <section ref="scroll" class="messages" aria-live="polite">
+    <button v-if="!stick" class="back-to-bottom" type="button" title="回到底部" @click="scrollToBottom">
+      <i class="iconfont icon-down" aria-hidden="true"></i>
+    </button>
+    <section ref="scroll" class="messages" aria-live="polite" @scroll.passive="onScroll">
       <div class="messages-content">
         <div v-if="needsApiSetup" class="api-setup-wrap">
           <form class="api-setup-card" @submit.prevent="saveApiSetup">
@@ -83,6 +126,9 @@ watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], a
 <style scoped>
 .chat-view { position: relative; min-width: 0; height: 100vh; display: flex; flex: 1; flex-direction: column; background: var(--chat-bg); }
 .messages { flex: 1; overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth; will-change: transform; }
+.back-to-bottom { position: absolute; z-index: 20; bottom: 172px; left: 50%; width: 32px; height: 32px; display: grid; place-items: center; transform: translateX(-50%); border: 1px solid var(--color-border-2); border-radius: 50%; color: var(--color-text-2); background: var(--color-bg-2); box-shadow: 0 2px 8px #00000024; }
+.back-to-bottom:hover { color: var(--color-primary); border-color: var(--color-primary); }
+@media (prefers-reduced-motion: reduce) { .messages { scroll-behavior: auto; } }
 .messages::-webkit-scrollbar { width: 0; }
 .messages-content { min-height: 100%; padding-top: 20px; }
 .api-setup-wrap { margin: 40px 52px 0; }
