@@ -12,10 +12,10 @@ function makeAgent(id, extra = {}) {
   return { _id: id, nickname: id, params: { messages: [{ role: 'system', content: '角色指令' }] }, ...extra };
 }
 
-test('stores the role prompt encrypted and reads it back intact', async () => {
+test('stores the role prompt in uTools dbStorage and reads it back intact', async () => {
   resetDatabase();
   saveAgent(makeAgent('ai@1'));
-  assert.ok(host.db.get('ai@1').params.messages[0].content.startsWith('U2FsdGVkX1'));
+  assert.equal(host.db.get('ai@1').params.messages[0].content, '角色指令');
   const [agent] = await loadAgents();
   assert.equal(agent.params.messages[0].content, '角色指令');
 });

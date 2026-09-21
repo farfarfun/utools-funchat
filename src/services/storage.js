@@ -1,41 +1,36 @@
-import CryptoJS from 'crypto-js';
 import { clonePlain } from './plain-clone.js';
 import { host } from './utools.js';
 
 const SETTINGS_KEY = 'funchat.settings';
+const DOCUMENTS_KEY = 'browser.db';
 
-function decrypt(value, key) {
-  if (typeof value !== 'string' || !value.startsWith('U2FsdGVkX1')) return value;
-  try {
-    const bytes = CryptoJS.AES.decrypt(value, key);
-    if (bytes.sigBytes <= 0) return '';
-    return bytes.toString(CryptoJS.enc.Utf8) || value;
-  } catch {
-    return value;
-  }
+function documents() {
+  return host.dbStorage.getItem(DOCUMENTS_KEY) || {};
 }
 
-function encrypt(value, key) {
-  return CryptoJS.AES.encrypt(String(value || ''), key).toString();
+function saveDocuments(value) {
+  host.dbStorage.setItem(DOCUMENTS_KEY, value);
 }
 
 function putDocument(document) {
-  const result = host.db.put(document);
-  if (!result?.error) return result;
-  const latest = host.db.get(document._id);
-  if (!latest?._rev || latest._rev === document._rev) return result;
-  return host.db.put({ ...document, _rev: latest._rev });
+  const all = documents();
+  const previous = all[document._id];
+  const next = { ...clonePlain(document), _rev: `${Number.parseInt(previous?._rev, 10) + 1 || 1}-storage` };
+  all[next._id] = next;
+  saveDocuments(all);
+  return { ok: true, id: next._id, rev: next._rev };
 }
 
-function decodeAgent(document) {
-  const agent = clonePlain(document);
-  const first = agent.params?.messages?.[0];
-  if (first) first.content = decrypt(first.content, agent._id);
-  return agent;
+function getDocument(id) {
+  return clonePlain(documents()[id] || null);
+}
+
+function allDocuments(prefix = '') {
+  return Object.values(documents()).filter((document) => document._id.startsWith(prefix)).map(clonePlain);
 }
 
 export async function loadAgents() {
-  let documents = host.db.allDocs('ai@') || [];
+  let documents = allDocuments('ai@');
   if (!documents.length) {
     const response = await fetch('./data/agents.json');
     if (!response.ok) throw new Error('无法加载初始好友数据');
@@ -43,54 +38,41 @@ export async function loadAgents() {
     for (const source of documents) {
       const document = clonePlain(source);
       delete document._rev;
-      const first = document.params?.messages?.[0];
-      if (first) first.content = encrypt(first.content, document._id);
-      host.db.put(document);
+      putDocument(document);
     }
-    documents = host.db.allDocs('ai@') || [];
+    documents = allDocuments('ai@');
   }
 
-  return documents.map(decodeAgent);
+  return documents;
 }
 
 export function saveAgent(agent) {
   const document = clonePlain(agent);
   delete document.chatId;
-  const first = document.params?.messages?.[0];
-  if (first) first.content = encrypt(first.content, document._id);
   const result = putDocument(document);
   if (result?.rev) agent._rev = result.rev;
 }
 
 export function removeAgent(agentId) {
-  host.db.remove(agentId);
-  for (const history of host.db.allDocs(`chat@${agentId}#`) || []) host.db.remove(history._id);
+  const all = documents();
+  delete all[agentId];
+  for (const history of allDocuments(`chat@${agentId}#`)) delete all[history._id];
+  saveDocuments(all);
 }
 
 export function loadHistories() {
-  return (host.db.allDocs('chat@') || []).flatMap((document) => {
-    try {
-      const messages = Array.isArray(document.messages)
-        ? clonePlain(document.messages)
-        : JSON.parse(decrypt(document.messages, document._id));
-      const separator = document._id.lastIndexOf('#');
-      return [{
-        ...document,
-        messages,
-        agentId: separator < 0 ? document._id.slice(5) : document._id.slice(5, separator),
-        sortKey: separator < 0 ? 0 : Number(document._id.slice(separator + 1)) || 0,
-      }];
-    } catch {
-      return [];
-    }
+  return allDocuments('chat@').flatMap((document) => {
+    if (!Array.isArray(document.messages)) return [];
+    const separator = document._id.lastIndexOf('#');
+    return [{ ...document, messages: clonePlain(document.messages), agentId: separator < 0 ? document._id.slice(5) : document._id.slice(5, separator), sortKey: separator < 0 ? 0 : Number(document._id.slice(separator + 1)) || 0 }];
   }).sort((left, right) => right.sortKey - left.sortKey);
 }
 
 export function saveHistory({ id, title, messages, favorite = false }) {
-  const document = host.db.get(id) || { _id: id };
+  const document = getDocument(id) || { _id: id };
   const now = new Date().toLocaleString('zh-CN', { hour12: false });
   document.title = title;
-  document.messages = encrypt(JSON.stringify(messages), id);
+  document.messages = clonePlain(messages);
   document.createdDate ||= now;
   document.updatedDate = now;
   document.updatedAt = Date.now();
@@ -99,7 +81,9 @@ export function saveHistory({ id, title, messages, favorite = false }) {
 }
 
 export function removeHistory(id) {
-  host.db.remove(id);
+  const all = documents();
+  delete all[id];
+  saveDocuments(all);
 }
 
 let routeSeed = 0;

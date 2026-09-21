@@ -54,9 +54,9 @@ cd utools-funchat
 sh build.sh
 ```
 
-构建会依次跑测试、校验清单、打包界面，最后把插件运行所需的文件输出到 `utool/`。
+构建会依次跑测试、校验清单、打包界面，最后把插件运行所需的文件输出到 `utools/`。
 
-在 uTools 中打开「插件应用市场 → 开发者工具 → 新建项目」，选择 `utool/plugin.json` 导入即可。
+在 uTools 中打开「插件应用市场 → 开发者工具 → 新建项目」，选择 `utools/plugin.json` 导入即可。
 
 ## 首次配置
 
@@ -117,3 +117,12 @@ funchat 是 [farfarfun](https://github.com/farfarfun) 的开源项目之一 —�
 ## License
 
 [MIT](LICENSE)
+
+---
+
+## 关于 farfarfun
+
+[farfarfun](https://github.com/farfarfun) 是一个专注于实用工具库的开源组织，
+涵盖云存储、数据处理、AI、多媒体与开发工具链等方向。
+
+本项目采用 [MIT](LICENSE) 协议开源。欢迎提交 Issue 和 Pull Request。

@@ -8,8 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 .DS_Store
 /utools/dist/
+dist/
 dist-ssr
 coverage
+*.db
+*.rar
 *.local
 /node_modules/
 
@@ -20,7 +23,7 @@ coverage
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/*
 *.suo
 *.ntvs*
 *.njsproj
@@ -29,7 +32,10 @@ coverage
 
 *.tsbuildinfo
 
-__pycache__
+__pycache__/
+*.pyc
+.venv/
+.run/
 
 # my ignore
 result.md
