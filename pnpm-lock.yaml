@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       dompurify:
-        specifier: ^3.4.14
-        version: 3.4.14
+        specifier: ^3.4.16
+        version: 3.4.16
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1
@@ -696,8 +696,8 @@ packages:
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
 
-  dompurify@3.4.14:
-    resolution: {integrity: sha512-dVoH9z+MY+C9IilgGCk3YfFqjLi3fChm2OiKJMzh6axrJ5qwxqWaZamgmHrpv22CN/KdbZJuGEGgfQoL00LTdg==}
+  dompurify@3.4.16:
+    resolution: {integrity: sha512-sqo+pNp3qRhCIpbgRi1y8Tgk27Bo2Ry7w0dC1NBeNTdZChWjz9Xb/KOoZbRP/R6pQZ80Qw8YhXw13hWWBbMRnQ==}
 
   entities@7.0.1:
     resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
@@ -1791,7 +1791,7 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  dompurify@3.4.14:
+  dompurify@3.4.16:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
