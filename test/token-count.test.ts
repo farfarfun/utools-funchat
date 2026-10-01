@@ -1,6 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { estimateConversationTokens, estimateTokens, messageText } from '../src/features/chat/token-count.js';
+import { test } from 'vitest';
+import { strict as assert } from 'node:assert';
+import { estimateConversationTokens, estimateTokens, messageText } from '../src/features/chat/token-count.ts';
 
 test('reads text out of strings, plain messages and multi-part content', () => {
   assert.equal(messageText('直接的字符串'), '直接的字符串');

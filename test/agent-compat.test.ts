@@ -1,10 +1,10 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import { strict as assert } from 'node:assert';
 import fs from 'node:fs';
-import { agentFormValues } from '../src/features/agents/agent-form.js';
-import { loadAgents } from '../src/services/storage.js';
-import { host } from '../src/services/utools.js';
-import { useChatStore } from '../src/stores/chat.js';
+import { agentFormValues } from '../src/features/agents/agent-form.ts';
+import { loadAgents } from '../src/services/storage.ts';
+import { host } from '../src/services/utools.ts';
+import { useChatStore } from '../src/stores/chat.ts';
 
 const store = useChatStore();
 const seed = JSON.parse(fs.readFileSync(new URL('../public/data/agents.json', import.meta.url), 'utf8'));

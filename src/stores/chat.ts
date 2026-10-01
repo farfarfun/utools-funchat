@@ -1,6 +1,6 @@
 import { computed, reactive } from 'vue';
-import { streamChat } from '../services/chat.js';
-import { clonePlain } from '../services/plain-clone.js';
+import { streamChat } from '../services/chat.ts';
+import { clonePlain } from '../services/plain-clone.ts';
 import {
   loadAgents,
   loadHistories,
@@ -12,9 +12,9 @@ import {
   saveSettings,
   createRouteId,
   syncActiveRoute,
-} from '../services/storage.js';
-import { estimateConversationTokens, messageText } from '../features/chat/token-count.js';
-import { writeOptionalParams } from '../features/agents/agent-form.js';
+} from '../services/storage.ts';
+import { estimateConversationTokens, messageText } from '../features/chat/token-count.ts';
+import { writeOptionalParams } from '../features/agents/agent-form.ts';
 
 const OPTIONAL_AGENT_FIELDS = {
   autoPrefix: '',

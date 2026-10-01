@@ -1,6 +1,6 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { findBlockStart, findInlineStart, matchBlockMath, matchInlineMath } from '../src/features/chat/math-delimiters.js';
+import { strict as assert } from 'node:assert';
+import { test } from 'vitest';
+import { findBlockStart, findInlineStart, matchBlockMath, matchInlineMath } from '../src/features/chat/math-delimiters.ts';
 
 test('recognises $$ block math', () => {
   assert.equal(matchBlockMath('$$E = mc^2$$')?.expression, 'E = mc^2');

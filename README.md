@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" alt="funchat" width="88">
+<img src="public/logo.png" alt="funchat" width="88">
 
 # funchat
 
@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/github/license/farfarfun/utools-funchat?color=0ca47f)](LICENSE)
 [![uTools](https://img.shields.io/badge/uTools-plugin-0ca47f)](https://u.tools)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883)](https://vuejs.org)
-[![Tests](https://img.shields.io/badge/tests-50%20passing-0ca47f)](test)
+[![Tests](https://img.shields.io/badge/tests-passing-0ca47f)](test)
 [![Stars](https://img.shields.io/github/stars/farfarfun/utools-funchat?style=flat&color=0ca47f)](https://github.com/farfarfun/utools-funchat/stargazers)
 
 </div>
@@ -33,7 +33,7 @@
 | **全局搜索** | 一个输入框同时搜好友和所有历史话题，直接跳到那次对话 |
 | **一键导出** | 整段会话导出 Markdown / HTML / PDF，单条消息存成 PNG 图片 |
 | **明暗主题** | 浅色、深色、跟随系统 |
-| **本地优先** | 会话和配置都在 uTools 本地数据库里，不经过任何第三方服务 |
+| **本地优先** | 会话和配置默认保存在 uTools 本地数据库；聊天消息会发送到所选的 uTools AI，使用私有 API 时消息和 API Key 会发送到用户配置的 OpenAI 兼容服务 |
 
 ## 快捷键
 
@@ -72,7 +72,7 @@ sh build.sh
 ```bash
 pnpm install
 pnpm dev     # 浏览器预览，自带 uTools API 模拟层，数据存在 localStorage
-pnpm test    # 50 个测试，覆盖流式解析、存储层、会话状态机与数据兼容
+pnpm test    # 覆盖流式解析、存储层、会话状态机与数据兼容
 ```
 
 ```text
@@ -82,7 +82,7 @@ src/
 ├── stores/       # 会话状态与业务编排（单例 reactive，非 Pinia）
 └── styles/       # 全局色板
 public/           # 字体、头像与初始好友数据
-test/             # Node.js 原生测试，无需浏览器
+test/             # Vitest 测试，无需浏览器
 utools/           # uTools 插件目录，也是打包目录（不含 .git）
 ├── plugin.json   # 插件清单
 ├── preload.js    # uTools 预加载桥接
@@ -125,4 +125,7 @@ funchat 是 [farfarfun](https://github.com/farfarfun) 的开源项目之一 —�
 [farfarfun](https://github.com/farfarfun) 是一个专注于实用工具库的开源组织，
 涵盖云存储、数据处理、AI、多媒体与开发工具链等方向。
 
-本项目采用 [MIT](LICENSE) 协议开源。欢迎提交 Issue 和 Pull Request。
+- 🏠 组织主页：<https://github.com/farfarfun>
+- 📧 联系：farfarfun@qq.com
+
+本项目基于 [MIT](LICENSE) 协议开源。

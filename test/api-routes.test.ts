@@ -1,7 +1,7 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { activeRoute, loadSettings, routesFromLegacy, syncActiveRoute } from '../src/services/storage.js';
-import { host } from '../src/services/utools.js';
+import { strict as assert } from 'node:assert';
+import { test } from 'vitest';
+import { activeRoute, loadSettings, routesFromLegacy, syncActiveRoute } from '../src/services/storage.ts';
+import { host } from '../src/services/utools.ts';
 
 function resetSettings() {
   host.dbStorage.removeItem('funchat.settings');

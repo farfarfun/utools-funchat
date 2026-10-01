@@ -1,10 +1,10 @@
-import { clonePlain } from './plain-clone.js';
-import { host } from './utools.js';
+import { clonePlain } from './plain-clone.ts';
+import { host } from './utools.ts';
 
 const SETTINGS_KEY = 'funchat.settings';
 const DOCUMENTS_KEY = 'browser.db';
 
-function documents() {
+function documents(): Record<string, any> {
   return host.dbStorage.getItem(DOCUMENTS_KEY) || {};
 }
 

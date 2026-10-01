@@ -1,4 +1,4 @@
-import { host } from '../../services/utools.js';
+import { host } from '../../services/utools.ts';
 
 export const COLLAPSE_THRESHOLD = 900;
 

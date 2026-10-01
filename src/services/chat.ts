@@ -1,6 +1,21 @@
-import { host } from './utools.js';
+import { host } from './utools.ts';
 
-export function normalizeChatUrl(value) {
+type ChatMessage = { role?: string; content?: unknown };
+type ChatParams = Record<string, unknown> & { model?: string; messages: ChatMessage[]; stream: boolean; max_tokens?: number };
+type StreamChatOptions = {
+  settings: { provider?: string; baseUrl?: string; apiKey?: string; model?: string };
+  agent: { params?: Record<string, unknown> & { model?: string }; un_stream?: boolean };
+  messages: ChatMessage[];
+  signal?: AbortSignal;
+  onDelta: (chunk: string) => void;
+};
+
+/**
+ * 将用户配置的服务地址规范化为 OpenAI 聊天补全端点。
+ * @param value 用户填写的基础地址或完整端点；末尾 `#` 表示禁止自动补全路径。
+ * @returns 可请求的端点地址；空输入返回空字符串。
+ */
+export function normalizeChatUrl(value: unknown): string {
   const raw = String(value || '').trim();
   if (raw.endsWith('#')) return raw.slice(0, -1);
   const base = raw.replace(/\/$/u, '');
@@ -9,18 +24,28 @@ export function normalizeChatUrl(value) {
   return `${base.endsWith('/v1') ? base : `${base}/v1`}/chat/completions`;
 }
 
-function readChoice(payload) {
+function readChoice(payload: any): string {
   return payload?.choices?.[0]?.delta?.content
     ?? payload?.choices?.[0]?.message?.content
     ?? payload?.content
     ?? '';
 }
 
-export function isEventStream(text) {
+/**
+ * 判断文本块是否符合 Server-Sent Events 字段格式。
+ * @param text 待检查的响应文本。
+ * @returns 包含 SSE 字段时返回 `true`。
+ */
+export function isEventStream(text: string): boolean {
   return /^(?::|data:|event:|id:|retry:)/mu.test(text);
 }
 
-export function parseEventStream(text) {
+/**
+ * 从 SSE 文本中提取聊天增量内容，忽略空事件和 `[DONE]` 标记。
+ * @param text 一个或多个 SSE 事件组成的文本。
+ * @returns 按出现顺序拼接的内容；无法解析的 data 行保留原文。
+ */
+export function parseEventStream(text: string): string {
   return text.split(/\r?\n/u).flatMap((line) => {
     if (!line.startsWith('data:')) return [];
     const value = line.slice(5).trim();
@@ -33,9 +58,9 @@ export function parseEventStream(text) {
   }).join('');
 }
 
-async function useUtoolsAi(params, onDelta, signal) {
+async function useUtoolsAi(params: ChatParams, onDelta: (chunk: string) => void, signal?: AbortSignal): Promise<void> {
   let thinking = false;
-  const pending = host.ai(params, (chunk = {}) => {
+  const pending = host.ai(params, (chunk: { reasoning_content?: string; content?: string } = {}) => {
     if (chunk.reasoning_content) {
       if (!thinking) onDelta(':::thinking\n');
       thinking = true;
@@ -56,8 +81,13 @@ async function useUtoolsAi(params, onDelta, signal) {
   await pending;
 }
 
-export async function streamChat({ settings, agent, messages, signal, onDelta }) {
-  const params = {
+/**
+ * 通过 uTools AI 或用户配置的 OpenAI 兼容接口流式发送一次对话。
+ * @param options 请求设置、角色参数、消息、取消信号和增量回调。
+ * @returns 响应流消费完成后结束；配置缺失或远端请求失败时抛出错误。
+ */
+export async function streamChat({ settings, agent, messages, signal, onDelta }: StreamChatOptions): Promise<void> {
+  const params: ChatParams = {
     ...agent.params,
     model: agent.params?.model || settings.model || 'gpt-4.1-mini',
     messages,

@@ -1,6 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { COLLAPSE_THRESHOLD, formatTimestamp, isLongMessage } from '../src/features/chat/message-tools.js';
+import { test } from 'vitest';
+import { strict as assert } from 'node:assert';
+import { COLLAPSE_THRESHOLD, formatTimestamp, isLongMessage } from '../src/features/chat/message-tools.ts';
 
 test('builds stable image timestamps', () => {
   assert.equal(formatTimestamp(new Date(2026, 0, 2, 3, 4, 5)), '20260102-030405');

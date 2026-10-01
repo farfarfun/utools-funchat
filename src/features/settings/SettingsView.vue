@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 import { saveAgent } from '../../services/storage.js';
 import { useChatStore } from '../../stores/chat.js';

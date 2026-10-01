@@ -1,6 +1,6 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { filterHistoryRecords, matchesHistoryQuery } from '../src/features/search/search.js';
+import { test } from 'vitest';
+import { strict as assert } from 'node:assert';
+import { filterHistoryRecords, matchesHistoryQuery } from '../src/features/search/search.ts';
 
 const records = [
   { title: 'Vue 组件设计', messages: [], sortKey: 1 },

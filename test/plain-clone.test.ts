@@ -1,7 +1,7 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { strict as assert } from 'node:assert';
+import { test } from 'vitest';
 import { reactive } from 'vue';
-import { clonePlain } from '../src/services/plain-clone.js';
+import { clonePlain } from '../src/services/plain-clone.ts';
 
 test('clones Vue reactive chat data as plain independent values', () => {
   const source = reactive({ messages: [{ role: 'user', content: 'hello' }] });

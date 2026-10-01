@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { filterHistoryRecords } from '../search/search.js';
 import { useChatStore } from '../../stores/chat.js';

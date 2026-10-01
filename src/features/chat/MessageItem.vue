@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { host } from '../../services/utools.js';
 import AgentAvatar from '../agents/AgentAvatar.vue';

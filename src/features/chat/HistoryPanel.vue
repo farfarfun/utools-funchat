@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useChatStore } from '../../stores/chat.js';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';

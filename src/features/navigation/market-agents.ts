@@ -1,6 +1,6 @@
 // 角色按分类拆在 ./market/ 下，这里用 glob 自动收集——
 // 新增一个分类文件即可生效，不必回来改这份清单。
-const modules = import.meta.glob('./market/*.js', { eager: true });
+const modules = import.meta.glob<{ default: any[] }>('./market/*.ts', { eager: true });
 
 // tab 的展示顺序。没列到的分类会按文件名顺序排在后面，不会凭空消失。
 const CATEGORY_ORDER = [

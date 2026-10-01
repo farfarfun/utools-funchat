@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { host } from '../../services/utools.js';
 import { useChatStore } from '../../stores/chat.js';

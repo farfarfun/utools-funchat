@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue';
 import AgentList from './features/agents/AgentList.vue';
 import ChatView from './features/chat/ChatView.vue';

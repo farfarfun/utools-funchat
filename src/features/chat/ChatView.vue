@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import AgentAvatar from '../agents/AgentAvatar.vue';
 import { useChatStore } from '../../stores/chat.js';

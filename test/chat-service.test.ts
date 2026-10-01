@@ -1,7 +1,7 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { isEventStream, normalizeChatUrl, parseEventStream, streamChat } from '../src/services/chat.js';
-import { host } from '../src/services/utools.js';
+import { test } from 'vitest';
+import { strict as assert } from 'node:assert';
+import { isEventStream, normalizeChatUrl, parseEventStream, streamChat } from '../src/services/chat.ts';
+import { host } from '../src/services/utools.ts';
 
 function collect(chunks, contentType = 'text/event-stream') {
   const body = new ReadableStream({

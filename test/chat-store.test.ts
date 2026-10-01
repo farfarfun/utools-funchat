@@ -1,9 +1,9 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import { strict as assert } from 'node:assert';
 import { computed, effect } from 'vue';
-import { loadHistories } from '../src/services/storage.js';
-import { host } from '../src/services/utools.js';
-import { useChatStore } from '../src/stores/chat.js';
+import { loadHistories } from '../src/services/storage.ts';
+import { host } from '../src/services/utools.ts';
+import { useChatStore } from '../src/stores/chat.ts';
 
 const store = useChatStore();
 

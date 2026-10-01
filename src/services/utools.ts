@@ -1,4 +1,4 @@
-import { clonePlain } from './plain-clone.js';
+import { clonePlain } from './plain-clone.ts';
 
 const STORAGE_KEY = 'funchat.browser.db';
 
@@ -14,9 +14,9 @@ function createWebStorage() {
 
 function createBrowserUtools() {
   const localStorage = createWebStorage();
-  const readDocs = () => new Map(Object.entries(JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')));
+  const readDocs = (): Map<string, any> => new Map(Object.entries(JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')));
   const writeDocs = (docs) => localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(docs)));
-  const db = {
+  const db: any = {
     put(document) {
       const docs = readDocs();
       const next = clonePlain(document);
@@ -69,5 +69,5 @@ function createBrowserUtools() {
   };
 }
 
-export const host = globalThis.utools || createBrowserUtools();
+export const host: any = globalThis.utools || createBrowserUtools();
 globalThis.utools ||= host;

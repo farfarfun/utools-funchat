@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 import { useChatStore } from '../../stores/chat.js';
 import { agentFormValues } from './agent-form.js';
@@ -6,10 +6,10 @@ import AgentAvatar from './AgentAvatar.vue';
 
 const store = useChatStore();
 const dialog = ref();
-const editing = ref(null);
+const editing = ref<any>(null);
 const tab = ref('basic');
 const question = ref('');
-const form = reactive({});
+const form = reactive<Record<string, any>>({});
 
 const previewAgent = computed(() => ({
   nickname: form.nickname || 'AI',

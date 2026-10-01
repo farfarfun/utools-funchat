@@ -1,7 +1,7 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import katex from 'katex';
-import { findBlockStart, findInlineStart, matchBlockMath, matchInlineMath } from './math-delimiters.js';
+import { findBlockStart, findInlineStart, matchBlockMath, matchInlineMath } from './math-delimiters.ts';
 
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   if (node.tagName !== 'A') return;
@@ -65,5 +65,5 @@ marked.use({ extensions: [blockMath, inlineMath] });
 const SANITIZE_OPTIONS = { ADD_ATTR: ['class', 'style'] };
 
 export function renderMarkdown(value) {
-  return DOMPurify.sanitize(marked.parse(String(value ?? ''), { breaks: true }), SANITIZE_OPTIONS);
+  return DOMPurify.sanitize(marked.parse(String(value ?? ''), { breaks: true, async: false }), SANITIZE_OPTIONS);
 }

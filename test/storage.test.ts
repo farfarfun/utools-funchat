@@ -1,7 +1,7 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { loadAgents, loadHistories, removeAgent, saveAgent, saveHistory } from '../src/services/storage.js';
-import { host } from '../src/services/utools.js';
+import { test } from 'vitest';
+import { strict as assert } from 'node:assert';
+import { loadAgents, loadHistories, removeAgent, saveAgent, saveHistory } from '../src/services/storage.ts';
+import { host } from '../src/services/utools.ts';
 
 function resetDatabase() {
   for (const document of host.db.allDocs('')) host.db.remove(document._id);
