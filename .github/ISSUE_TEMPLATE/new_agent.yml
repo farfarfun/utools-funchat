@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        想直接提 PR 的话，编辑 `src/features/navigation/market-agents.js` 就行，照着现有条目写一条即可。
+        想直接提 PR 的话，编辑 `src/features/navigation/market/` 下对应的 `.ts` 分类文件即可，照着现有条目写一条即可。
   - type: input
     id: nickname
     attributes:

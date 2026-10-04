@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/github/license/farfarfun/utools-funchat?color=0ca47f)](LICENSE)
 [![uTools](https://img.shields.io/badge/uTools-plugin-0ca47f)](https://u.tools)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883)](https://vuejs.org)
-[![Tests](https://img.shields.io/badge/tests-passing-0ca47f)](test)
+[![Tests](https://img.shields.io/badge/tests-passing-0ca47f)](tests)
 [![Stars](https://img.shields.io/github/stars/farfarfun/utools-funchat?style=flat&color=0ca47f)](https://github.com/farfarfun/utools-funchat/stargazers)
 
 </div>
@@ -27,7 +27,7 @@
 | | |
 |---|---|
 | **多 AI 好友** | 每个角色独立的提示词、模型、上下文长度和历史记录。置顶、拖拽排序、右键管理 |
-| **AI 市场** | 内置 12 个开箱即用的角色 —— 润色、审代码、写正则、调 SQL、模拟面试、费曼讲解……点一下就添加 |
+| **AI 市场** | 内置 300 个开箱即用的角色 —— 润色、审代码、写正则、调 SQL、模拟面试、费曼讲解……点一下就添加 |
 | **多模型接入** | uTools 内置 AI、OpenAI 兼容接口，或任意自定义 API 地址。角色不指定模型时自动跟随全局设置 |
 | **话题回溯** | 每个好友的历史话题独立存档，支持收藏、全文搜索、随时继续 |
 | **全局搜索** | 一个输入框同时搜好友和所有历史话题，直接跳到那次对话 |
@@ -75,6 +75,8 @@ pnpm dev     # 浏览器预览，自带 uTools API 模拟层，数据存在 loca
 pnpm test    # 覆盖流式解析、存储层、会话状态机与数据兼容
 ```
 
+需要由脚本管理浏览器预览服务时，使用 `sh scripts/setup.sh dev start` 启动，`dev stop` 停止，`dev status` 查看状态；将 `dev` 替换为 `prod` 可管理 `vite preview` 服务。
+
 ```text
 src/
 ├── features/     # 好友、聊天、搜索、导航、设置
@@ -82,7 +84,7 @@ src/
 ├── stores/       # 会话状态与业务编排（单例 reactive，非 Pinia）
 └── styles/       # 全局色板
 public/           # 字体、头像与初始好友数据
-test/             # Vitest 测试，无需浏览器
+tests/            # Vitest 测试，无需浏览器
 utools/           # uTools 插件目录，也是打包目录（不含 .git）
 ├── plugin.json   # 插件清单
 ├── preload.js    # uTools 预加载桥接
@@ -101,7 +103,7 @@ sh build.sh
 
 > 打包目录是 `utools/` 而不是仓库根目录——uTools 会把 `plugin.json` 所在目录整个打包，放在根目录会把 `.git/` 一并打进去。
 
-欢迎提 [Issue](https://github.com/farfarfun/utools-funchat/issues) 和 PR —— 修 bug、加角色、改界面都可以。给市场加一个好用的角色，是最轻量的贡献方式：编辑 `src/features/navigation/market-agents.js` 即可。
+欢迎提 [Issue](https://github.com/farfarfun/utools-funchat/issues) 和 PR —— 修 bug、加角色、改界面都可以。给市场加一个好用的角色，是最轻量的贡献方式：编辑 `src/features/navigation/market/` 下对应的 `.ts` 分类文件即可；`src/features/navigation/market-agents.ts` 会自动收集这些分类。
 
 ## 说明
 

@@ -4,15 +4,20 @@ import { host } from './utools.ts';
 const SETTINGS_KEY = 'funchat.settings';
 const DOCUMENTS_KEY = 'browser.db';
 
-function documents(): Record<string, any> {
+export type StorageDocument = Record<string, any> & { _id: string; _rev?: string; chatId?: unknown; messages?: unknown[] };
+export type HistoryInput = { id: string; title: string; messages: unknown[]; favorite?: boolean };
+export type ApiRoute = Record<string, any> & { id: string; name: string; provider: string; baseUrl: string; apiKey: string; streamMode: string; wasActive?: boolean };
+export type Settings = Record<string, any> & { apiRoutes?: ApiRoute[]; activeRouteId?: string; provider?: string; baseUrl?: string; apiKey?: string };
+
+function documents(): Record<string, StorageDocument> {
   return host.dbStorage.getItem(DOCUMENTS_KEY) || {};
 }
 
-function saveDocuments(value) {
+function saveDocuments(value: Record<string, StorageDocument>): void {
   host.dbStorage.setItem(DOCUMENTS_KEY, value);
 }
 
-function putDocument(document) {
+function putDocument(document: StorageDocument): { ok: true; id: string; rev: string } {
   const all = documents();
   const previous = all[document._id];
   const next = { ...clonePlain(document), _rev: `${Number.parseInt(previous?._rev, 10) + 1 || 1}-storage` };
@@ -21,15 +26,19 @@ function putDocument(document) {
   return { ok: true, id: next._id, rev: next._rev };
 }
 
-function getDocument(id) {
+function getDocument(id: string): StorageDocument | null {
   return clonePlain(documents()[id] || null);
 }
 
-function allDocuments(prefix = '') {
+function allDocuments(prefix = ''): StorageDocument[] {
   return Object.values(documents()).filter((document) => document._id.startsWith(prefix)).map(clonePlain);
 }
 
-export async function loadAgents() {
+/**
+ * 读取已保存的好友；首次运行时导入内置好友数据。
+ * @returns 所有好友存储文档的副本。
+ */
+export async function loadAgents(): Promise<StorageDocument[]> {
   let documents = allDocuments('ai@');
   if (!documents.length) {
     const response = await fetch('./data/agents.json');
@@ -46,21 +55,35 @@ export async function loadAgents() {
   return documents;
 }
 
-export function saveAgent(agent) {
+/**
+ * 保存好友并将最新修订号写回传入对象。
+ * @param agent 要保存的好友存储文档。
+ * @returns 无返回值。
+ */
+export function saveAgent(agent: StorageDocument): void {
   const document = clonePlain(agent);
   delete document.chatId;
   const result = putDocument(document);
   if (result?.rev) agent._rev = result.rev;
 }
 
-export function removeAgent(agentId) {
+/**
+ * 删除好友及其全部历史会话。
+ * @param agentId 要删除的好友标识。
+ * @returns 无返回值。
+ */
+export function removeAgent(agentId: string): void {
   const all = documents();
   delete all[agentId];
   for (const history of allDocuments(`chat@${agentId}#`)) delete all[history._id];
   saveDocuments(all);
 }
 
-export function loadHistories() {
+/**
+ * 按最近会话优先的顺序读取全部历史记录。
+ * @returns 带好友标识和排序键的历史记录副本。
+ */
+export function loadHistories(): StorageDocument[] {
   return allDocuments('chat@').flatMap((document) => {
     if (!Array.isArray(document.messages)) return [];
     const separator = document._id.lastIndexOf('#');
@@ -68,7 +91,12 @@ export function loadHistories() {
   }).sort((left, right) => right.sortKey - left.sortKey);
 }
 
-export function saveHistory({ id, title, messages, favorite = false }) {
+/**
+ * 新建或更新一条聊天历史记录。
+ * @param history 会话标识、标题、消息及收藏状态。
+ * @returns 无返回值。
+ */
+export function saveHistory({ id, title, messages, favorite = false }: HistoryInput): void {
   const document = getDocument(id) || { _id: id };
   const now = new Date().toLocaleString('zh-CN', { hour12: false });
   document.title = title;
@@ -80,22 +108,36 @@ export function saveHistory({ id, title, messages, favorite = false }) {
   putDocument(document);
 }
 
-export function removeHistory(id) {
+/**
+ * 删除指定聊天历史记录。
+ * @param id 要删除的会话标识。
+ * @returns 无返回值。
+ */
+export function removeHistory(id: string): void {
   const all = documents();
   delete all[id];
   saveDocuments(all);
 }
 
 let routeSeed = 0;
-export function createRouteId() {
+/**
+ * 生成当前运行期内唯一的 API 路线标识。
+ * @returns 新生成的路线标识。
+ */
+export function createRouteId(): string {
   routeSeed += 1;
   return `route-${Date.now().toString(36)}-${routeSeed}`;
 }
 
 // 把旧版 apiProxy 数组整个搬过来。老实现只挑 isOpen 那一条、其余直接丢弃，
 // 用户配过的多条线路就是这样丢的——这里全部保留。
-export function routesFromLegacy(legacy) {
-  const entries = Array.isArray(legacy) ? legacy : [legacy];
+/**
+ * 将旧版单线路或线路数组迁移为当前路线结构。
+ * @param legacy 旧版 `apiProxy` 存储值。
+ * @returns 可用的 API 路线列表。
+ */
+export function routesFromLegacy(legacy: unknown): ApiRoute[] {
+  const entries: any[] = Array.isArray(legacy) ? legacy : [legacy];
   return entries
     .filter((item) => item && (item.url || item.apiKey || item.value === 200))
     .map((item, index) => ({
@@ -109,14 +151,24 @@ export function routesFromLegacy(legacy) {
     }));
 }
 
-export function activeRoute(settings) {
+/**
+ * 获取设置中当前选中的路线，缺失时回退到第一条。
+ * @param settings 含 API 路线的设置对象。
+ * @returns 当前路线；没有路线时返回 `null`。
+ */
+export function activeRoute(settings: Settings): ApiRoute | null {
   const routes = settings?.apiRoutes || [];
   return routes.find((route) => route.id === settings.activeRouteId) || routes[0] || null;
 }
 
 // provider/baseUrl/apiKey 作为当前线路的镜像字段保留，
 // 这样 streamChat 和各处的「是否已配置」判断都不用改。
-export function syncActiveRoute(settings) {
+/**
+ * 将当前路线字段同步到兼容旧调用方的设置镜像字段。
+ * @param settings 要同步的设置对象。
+ * @returns 同一个已同步的设置对象。
+ */
+export function syncActiveRoute(settings: Settings): Settings {
   const route = activeRoute(settings);
   if (!route) return settings;
   settings.activeRouteId = route.id;
@@ -126,7 +178,7 @@ export function syncActiveRoute(settings) {
   return settings;
 }
 
-function ensureRoutes(settings) {
+function ensureRoutes(settings: Settings): Settings {
   if (Array.isArray(settings.apiRoutes) && settings.apiRoutes.length) return syncActiveRoute(settings);
   // 老版本只存了单条，包装成第一条线路
   if (settings.baseUrl || settings.apiKey || settings.provider === 'utools') {
@@ -144,7 +196,11 @@ function ensureRoutes(settings) {
   return syncActiveRoute(settings);
 }
 
-export function loadSettings() {
+/**
+ * 读取设置，并在需要时从旧版存储格式迁移路线数据。
+ * @returns 当前应用设置。
+ */
+export function loadSettings(): Settings {
   const stored = host.dbStorage.getItem(SETTINGS_KEY);
   if (stored) return ensureRoutes({ ...stored, theme: stored.theme || (stored.dark ? 'dark' : 'system') });
 
@@ -164,6 +220,11 @@ export function loadSettings() {
   });
 }
 
-export function saveSettings(settings) {
+/**
+ * 将设置的纯数据副本写入本地存储。
+ * @param settings 要保存的应用设置。
+ * @returns 无返回值。
+ */
+export function saveSettings(settings: Settings): void {
   host.dbStorage.setItem(SETTINGS_KEY, clonePlain(settings));
 }
