@@ -66,6 +66,7 @@ marked.use({ extensions: [blockMath, inlineMath] });
 // KaTeX 靠 class 与内联 style 定位字形，消毒时必须放行，否则公式会散架
 const SANITIZE_OPTIONS = { ADD_ATTR: ['class', 'style'] };
 
+/** 将用户输入渲染并净化为可安全插入界面的 HTML。 */
 export function renderMarkdown(value: unknown): string {
   return DOMPurify.sanitize(marked.parse(String(value ?? ''), { breaks: true, async: false }), SANITIZE_OPTIONS);
 }

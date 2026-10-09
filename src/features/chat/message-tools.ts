@@ -22,10 +22,12 @@ export async function withAllExpanded<T>(action: () => Promise<T>): Promise<T> {
   }
 }
 
+/** 判断消息文本是否超过折叠阈值。 */
 export function isLongMessage(value: unknown): boolean {
   return String(value || '').length > COLLAPSE_THRESHOLD;
 }
 
+/** 将时间格式化为用于导出文件名的本地时间戳。 */
 export function formatTimestamp(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
@@ -37,6 +39,7 @@ export async function saveToDisk(dialogOptions: unknown, data: unknown, encoding
   return true;
 }
 
+/** 触发浏览器下载指定链接。 */
 export function downloadInBrowser(filename: string, href: string): void {
   const link = document.createElement('a');
   link.download = filename;
