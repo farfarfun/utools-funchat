@@ -10,14 +10,22 @@ const DOLLAR_RULE = /^\$(?![\s$])((?:[^$\n]|\\\$)+?)(?<!\s)\$(?!\d)/;
 
 export type MathMatch = { raw: string; expression: string; display?: boolean };
 
-/** 匹配开头的块级数学分隔符并返回原始文本与公式内容。 */
+/**
+ * 匹配开头的块级数学分隔符并返回原始文本与公式内容。
+ * @param src 待识别的 Markdown 源文本。
+ * @returns 匹配成功时返回数学公式信息，否则返回 undefined。
+ */
 export function matchBlockMath(src: string): MathMatch | undefined {
   const match = BLOCK_RULE.exec(src);
   if (!match) return undefined;
   return { raw: match[0], expression: match[1] ?? match[2] };
 }
 
-/** 匹配开头的行内数学分隔符并返回公式内容。 */
+/**
+ * 匹配开头的行内数学分隔符并返回公式内容。
+ * @param src 待识别的 Markdown 源文本。
+ * @returns 匹配成功时返回数学公式信息，否则返回 undefined。
+ */
 export function matchInlineMath(src: string): MathMatch | undefined {
   const paren = PAREN_RULE.exec(src);
   if (paren) return { raw: paren[0], expression: paren[1], display: false };
@@ -31,12 +39,20 @@ export function matchInlineMath(src: string): MathMatch | undefined {
   return undefined;
 }
 
-/** 返回下一个块级数学分隔符的位置。 */
+/**
+ * 返回下一个块级数学分隔符的位置。
+ * @param src 待搜索的 Markdown 源文本。
+ * @returns 分隔符起始位置；不存在时返回 undefined。
+ */
 export function findBlockStart(src: string): number | undefined {
   return src.match(/\$\$|\\\[/)?.index;
 }
 
-/** 返回下一个行内数学分隔符的位置。 */
+/**
+ * 返回下一个行内数学分隔符的位置。
+ * @param src 待搜索的 Markdown 源文本。
+ * @returns 分隔符起始位置；不存在时返回 undefined。
+ */
 export function findInlineStart(src: string): number | undefined {
   return src.match(/\$|\\\(/)?.index;
 }
