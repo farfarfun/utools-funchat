@@ -136,7 +136,9 @@ watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], a
 .back-to-bottom:hover { color: var(--color-primary); border-color: var(--color-primary); }
 @media (prefers-reduced-motion: reduce) { .messages { scroll-behavior: auto; } }
 .messages::-webkit-scrollbar { width: 0; }
-.messages-content { min-height: 100%; padding-top: 20px; }
+/* 会话列要有宽度上限并居中：气泡本身最宽 840px，窗口再宽下去
+   只会让 AI 的消息贴着左边、自己的消息贴着右边，中间空出一大片 */
+.messages-content { max-width: 1000px; min-height: 100%; margin: 0 auto; padding-top: 20px; }
 .api-setup-wrap { margin: 40px 52px 0; }
 .api-setup-card { position: relative; height: 337px; padding: 110px 32px 32px; border-radius: 12px; background: var(--color-bg-5); }
 .setup-avatar { position: absolute; top: -26px; left: calc(50% - 30px); }

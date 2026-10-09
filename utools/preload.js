@@ -1,7 +1,10 @@
 const fs = require('fs');
 
-// 独立窗口默认占屏幕工作区的比例
-const WINDOW_RATIO = 0.7;
+// 独立窗口默认尺寸：以宽度为主，高度按 16:10 推算（MacBook Pro 的宽高比）。
+// 不再两个方向都按同一比例取，否则窗口会跟着屏幕变形——超宽屏上扁得没法看。
+const WIDTH_RATIO = 0.82;
+const MAX_HEIGHT_RATIO = 0.88;
+const ASPECT = 16 / 10;
 
 window.saveFile = async (options, data, encoding = 'utf-8') => {
   const filePath = utools.showSaveDialog(options);
@@ -18,13 +21,18 @@ const openChatWindow = () => {
     chatWindow.focus();
     return chatWindow;
   }
-  // workAreaSize 已扣除菜单栏与 Dock，按它取 70% 不会被系统 UI 遮挡
-  const { width, height } = utools.getPrimaryDisplay().workAreaSize;
+  // workAreaSize 已扣除菜单栏与 Dock，基于它算就不会被系统 UI 遮挡
+  const area = utools.getPrimaryDisplay().workAreaSize;
+  // 先按宽度比例取，再用 16:10 推高度；高度顶到工作区上限时反过来由高度定宽，
+  // 这样矮屏幕上也不会算出一个超出屏幕的窗口
+  const maxHeight = Math.round(area.height * MAX_HEIGHT_RATIO);
+  const width = Math.min(Math.round(area.width * WIDTH_RATIO), Math.round(maxHeight * ASPECT), area.width);
+  const height = Math.round(width / ASPECT);
   chatWindow = utools.createBrowserWindow(
     'dist/index.html',
     {
-      width: Math.round(width * WINDOW_RATIO),
-      height: Math.round(height * WINDOW_RATIO),
+      width,
+      height,
       center: true,
       show: false,
       title: 'funchat',
