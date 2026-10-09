@@ -75,7 +75,7 @@ pnpm dev     # 浏览器预览，自带 uTools API 模拟层，数据存在 loca
 pnpm test    # 覆盖流式解析、存储层、会话状态机与数据兼容
 ```
 
-需要由脚本管理浏览器预览服务时，使用 `sh scripts/setup.sh dev start` 启动，`dev stop` 停止，`dev status` 查看状态；将 `dev` 替换为 `prod` 可管理 `vite preview` 服务。
+需要由脚本管理浏览器预览服务时，使用 `sh scripts/setup.sh start dev` 启动，`stop dev` 停止，`status dev` 查看状态；不带环境的 `status` 会同时报告 dev 与 prod。将 `dev` 替换为 `prod` 可管理 `vite preview` 服务。
 
 ```text
 src/
