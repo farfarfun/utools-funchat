@@ -1,23 +1,25 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 
-const dialog = ref();
+type ConfirmOptions = { title?: string; message?: string; confirmText?: string };
+
+const dialog = ref<HTMLDialogElement>();
 const content = reactive({ title: '', message: '', confirmText: '确定' });
-let resolveOpen;
+let resolveOpen: ((value: boolean) => void) | null = null;
 let confirmed = false;
 
-function open(options) {
-  if (dialog.value.open) return Promise.resolve(false);
+function open(options: ConfirmOptions): Promise<boolean> {
+  if (!dialog.value || dialog.value.open) return Promise.resolve(false);
   Object.assign(content, { confirmText: '确定', ...options });
   confirmed = false;
   dialog.value.showModal();
   dialog.value.focus();
-  return new Promise((resolve) => { resolveOpen = resolve; });
+  return new Promise<boolean>((resolve) => { resolveOpen = resolve; });
 }
 
 function confirm() {
   confirmed = true;
-  dialog.value.close();
+  dialog.value?.close();
 }
 
 function closed() {

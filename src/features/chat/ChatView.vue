@@ -5,6 +5,7 @@ import { useChatStore } from '../../stores/chat.js';
 import ChatComposer from './ChatComposer.vue';
 import ChatExportMenu from './ChatExportMenu.vue';
 import HistoryPanel from './HistoryPanel.vue';
+import ImageLightbox from './ImageLightbox.vue';
 import MessageItem from './MessageItem.vue';
 
 const store = useChatStore();
@@ -91,42 +92,47 @@ watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], a
 <template>
   <main class="chat-view">
     <ChatExportMenu />
-    <button v-if="!stick" class="back-to-bottom" type="button" title="回到底部" @click="scrollToBottom">
-      <i class="iconfont icon-down" aria-hidden="true"></i>
-    </button>
-    <section ref="scroll" class="messages" aria-live="polite" @scroll.passive="onScroll">
-      <div class="messages-content">
-        <div v-if="needsApiSetup" class="api-setup-wrap">
-          <form class="api-setup-card" @submit.prevent="saveApiSetup">
-            <AgentAvatar class="setup-avatar" :agent="store.state.currentAgent" :size="60" />
-            <h1>只差一步，<button type="button" @click="store.state.view = 'help'">点击查看解锁绑定API教程</button></h1>
-            <label class="setup-field required"><span>API KEY秘钥</span><input v-model="apiSetup.apiKey" type="password" autocomplete="off" placeholder="请复制或输入KEY秘钥（令牌）"></label>
-            <label class="setup-field"><span>API地址（转发API必填，官方KEY请忽略）</span><input v-model="apiSetup.baseUrl" placeholder="示例: https://api.gpt.ge"></label>
-            <button class="setup-save" type="submit">保存并开始</button>
-          </form>
-          <div class="setup-tips"><p>1、API管理：可点击聊天窗口 <i class="iconfont icon-key" aria-hidden="true"></i> API管理按钮，进行管理-支持无限添加API。</p><p>2、免费体验：可使用客户端内置 AI，或绑定自己的API使用。</p></div>
-        </div>
-        <template v-else>
-          <MessageItem v-if="greeting.content" :message="greeting" :agent="store.state.currentAgent" />
-          <div v-if="quickQuestions.length" class="quick-questions">
-            <button v-for="item in quickQuestions" :key="item" type="button" :disabled="store.state.loading" @click="store.send(item)">{{ item }}</button>
+    <!-- 包一层定位容器：输入区带图时会变高，按钮按「消息区底部」定位才不会被压住 -->
+    <div class="messages-area">
+      <button v-if="!stick" class="back-to-bottom" type="button" title="回到底部" @click="scrollToBottom">
+        <i class="iconfont icon-down" aria-hidden="true"></i>
+      </button>
+      <section ref="scroll" class="messages" aria-live="polite" @scroll.passive="onScroll">
+        <div class="messages-content">
+          <div v-if="needsApiSetup" class="api-setup-wrap">
+            <form class="api-setup-card" @submit.prevent="saveApiSetup">
+              <AgentAvatar class="setup-avatar" :agent="store.state.currentAgent" :size="60" />
+              <h1>只差一步，<button type="button" @click="store.state.view = 'help'">点击查看解锁绑定API教程</button></h1>
+              <label class="setup-field required"><span>API KEY秘钥</span><input v-model="apiSetup.apiKey" type="password" autocomplete="off" placeholder="请复制或输入KEY秘钥（令牌）"></label>
+              <label class="setup-field"><span>API地址（转发API必填，官方KEY请忽略）</span><input v-model="apiSetup.baseUrl" placeholder="示例: https://api.gpt.ge"></label>
+              <button class="setup-save" type="submit">保存并开始</button>
+            </form>
+            <div class="setup-tips"><p>1、API管理：可点击聊天窗口 <i class="iconfont icon-key" aria-hidden="true"></i> API管理按钮，进行管理-支持无限添加API。</p><p>2、免费体验：可使用客户端内置 AI，或绑定自己的API使用。</p></div>
           </div>
-          <MessageItem v-for="(message, index) in store.state.messages" :key="messageKey(message, index)"
-            :message="message" :index="index" :agent="store.state.currentAgent" :last="index === store.state.messages.length - 1"
-            :busy="store.state.loading" @delete="store.deleteMessage" @retry="store.retryMessage" />
-          <div v-if="store.state.loading" class="typing" role="status"><span></span><span></span><span></span></div>
-        </template>
-      </div>
-    </section>
+          <template v-else>
+            <MessageItem v-if="greeting.content" :message="greeting" :agent="store.state.currentAgent" />
+            <div v-if="quickQuestions.length" class="quick-questions">
+              <button v-for="item in quickQuestions" :key="item" type="button" :disabled="store.state.loading" @click="store.send(item)">{{ item }}</button>
+            </div>
+            <MessageItem v-for="(message, index) in store.state.messages" :key="messageKey(message, index)"
+              :message="message" :index="index" :agent="store.state.currentAgent" :last="index === store.state.messages.length - 1"
+              :busy="store.state.loading" @delete="store.deleteMessage" @retry="store.retryMessage" />
+            <div v-if="store.state.loading" class="typing" role="status"><span></span><span></span><span></span></div>
+          </template>
+        </div>
+      </section>
+    </div>
     <ChatComposer />
+    <ImageLightbox />
     <Transition name="history-drawer"><HistoryPanel v-if="store.state.historyOpen" /></Transition>
   </main>
 </template>
 
 <style scoped>
 .chat-view { position: relative; min-width: 0; height: 100vh; display: flex; flex: 1; flex-direction: column; background: var(--chat-bg); }
+.messages-area { position: relative; min-height: 0; display: flex; flex: 1; }
 .messages { flex: 1; overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth; will-change: transform; }
-.back-to-bottom { position: absolute; z-index: 20; bottom: 172px; left: 50%; width: 32px; height: 32px; display: grid; place-items: center; transform: translateX(-50%); border: 1px solid var(--color-border-2); border-radius: 50%; color: var(--color-text-2); background: var(--color-bg-2); box-shadow: 0 2px 8px #00000024; }
+.back-to-bottom { position: absolute; z-index: 20; bottom: 12px; left: 50%; width: 32px; height: 32px; display: grid; place-items: center; transform: translateX(-50%); border: 1px solid var(--color-border-2); border-radius: 50%; color: var(--color-text-2); background: var(--color-bg-2); box-shadow: 0 2px 8px #00000024; }
 .back-to-bottom:hover { color: var(--color-primary); border-color: var(--color-primary); }
 @media (prefers-reduced-motion: reduce) { .messages { scroll-behavior: auto; } }
 .messages::-webkit-scrollbar { width: 0; }

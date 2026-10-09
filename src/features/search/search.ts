@@ -1,11 +1,10 @@
 import { messageText } from '../chat/token-count.ts';
+import type { ChatMessage } from '../../types.ts';
 
-type HistoryRecord = {
-  [key: string]: unknown;
-  _id?: string;
-  agentId?: string;
+// 只要求排序键和消息体，这样搜索既能用在完整的历史文档上，也能用在测试里的简化记录上。
+type HistoryRecord = Record<string, any> & {
   title?: string;
-  messages: unknown[];
+  messages: ChatMessage[];
   sortKey: number;
 };
 

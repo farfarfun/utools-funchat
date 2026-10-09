@@ -168,6 +168,67 @@ test('deleting the active agent falls back to a neighbour', async () => {
   assert.equal(store.state.currentAgent._id, 'ai@2');
 });
 
+test('sends pasted images as multi-part content', async () => {
+  await setup();
+  let sent;
+  host.ai = async (params, onChunk) => { sent = params.messages; onChunk({ content: '是一只猫' }); };
+
+  await store.send('这是什么', ['data:image/png;base64,AAAA']);
+
+  assert.deepEqual(sent.at(-1).content, [
+    { type: 'text', text: '这是什么' },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
+  ]);
+  assert.equal(store.state.messages.at(-1).content, '是一只猫');
+});
+
+test('an image alone is enough to send a message', async () => {
+  await setup();
+  host.ai = replyWith('收到图片');
+
+  assert.equal(await store.send('', ['data:image/png;base64,AAAA']), true);
+  assert.deepEqual(store.state.messages[0].content, [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }]);
+  assert.equal(await store.send('', []), false, '没文字也没图时不该发出去');
+});
+
+test('images survive a round trip through the stored history', async () => {
+  await setup();
+  host.ai = replyWith('收到');
+  await store.send('看图', ['data:image/png;base64,AAAA']);
+  const [history] = store.state.histories;
+
+  store.newConversation();
+  store.openHistory(history);
+
+  assert.deepEqual(store.state.messages[0].content.at(-1), { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } });
+});
+
+test('retry replays the question together with its image', async () => {
+  await setup();
+  host.ai = replyWith('第一次回答');
+  await store.send('这是什么', ['data:image/png;base64,AAAA']);
+  let sent;
+  host.ai = async (params, onChunk) => { sent = params.messages; onChunk({ content: '第二次回答' }); };
+
+  await store.retryMessage(store.state.messages.length - 1);
+
+  assert.deepEqual(sent.at(-1).content.at(-1), { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } });
+  assert.equal(store.state.messages.at(-1).content, '第二次回答');
+  assert.equal(store.state.messages.length, 2, '重试不该留下旧的回答');
+});
+
+test('autoPrefix lands on the text part of a message that carries an image', async () => {
+  await setup();
+  store.state.currentAgent.autoPrefix = '请翻译:';
+  let sent;
+  host.ai = async (params, onChunk) => { sent = params.messages; onChunk({ content: 'ok' }); };
+
+  await store.send('这是什么', ['data:image/png;base64,AAAA']);
+
+  assert.deepEqual(sent.at(-1).content[0], { type: 'text', text: '请翻译:这是什么' });
+  assert.deepEqual(store.state.messages[0].content[0], { type: 'text', text: '这是什么' }, '界面与历史里不应带前缀');
+});
+
 test('autoPrefix is prepended to the outgoing question only', async () => {
   await setup();
   store.state.currentAgent.autoPrefix = '请翻译:';

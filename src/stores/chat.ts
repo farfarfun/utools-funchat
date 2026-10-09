@@ -13,10 +13,23 @@ import {
   createRouteId,
   syncActiveRoute,
 } from '../services/storage.ts';
+import { buildUserContent, hasContent, withPrefix } from '../features/chat/message-content.ts';
 import { estimateConversationTokens, messageText } from '../features/chat/token-count.ts';
 import { writeOptionalParams } from '../features/agents/agent-form.ts';
+import type {
+  Agent,
+  AgentFormValues,
+  AgentParams,
+  ApiRoute,
+  AppState,
+  ChatMessage,
+  History,
+  Settings,
+} from '../types.ts';
 
-const OPTIONAL_AGENT_FIELDS = {
+// 这些字段在原插件的导出数据里是可选的：值等于默认值且文档原本没有，就不要写进去，
+// 否则「打开设置再保存」会凭空给文档加字段（见 tests/agent-compat.test.ts）。
+const OPTIONAL_AGENT_FIELDS: Record<string, string | boolean> = {
   autoPrefix: '',
   status: '',
   callback: '',
@@ -30,7 +43,7 @@ const OPTIONAL_AGENT_FIELDS = {
   isAiSummary: false,
 };
 
-const state = reactive({
+const state = reactive<AppState>({
   ready: false,
   agents: [],
   currentAgent: null,
@@ -44,42 +57,41 @@ const state = reactive({
   view: 'chat',
 });
 
-let abortController;
+let abortController: AbortController | null = null;
 let activeStream = 0;
 let presetHidden = false;
-const systemTheme = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
+const systemTheme: MediaQueryList | undefined = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
 
-function initialMessages(agent) {
+function initialMessages(agent: Agent | null): ChatMessage[] {
   const messages = clonePlain(agent?.params?.messages || []);
   return messages[0]?.role === 'system' ? messages.slice(1) : messages;
 }
 
-function presetPrefix() {
+function presetPrefix(): ChatMessage[] {
   const preset = clonePlain(state.currentAgent?.params?.messages || []);
   return presetHidden ? preset : preset[0]?.role === 'system' ? preset.slice(0, 1) : [];
 }
 
-function requestMessages() {
+function requestMessages(): ChatMessage[] {
   const size = Math.max(Number(state.currentAgent?.contextLength) || 16, 1) * 2;
-  const messages = clonePlain(state.messages.slice(-size));
+  const messages = clonePlain(state.messages.slice(-size)) as ChatMessage[];
   const prefix = String(state.currentAgent?.autoPrefix || '').trim();
   const lastUser = prefix ? messages.findLastIndex((message) => message.role === 'user') : -1;
-  if (lastUser >= 0 && typeof messages[lastUser].content === 'string') {
-    messages[lastUser].content = prefix + messages[lastUser].content;
-  }
+  const target = lastUser >= 0 ? messages[lastUser] : undefined;
+  if (target) target.content = withPrefix(target.content, prefix);
   return [...presetPrefix(), ...messages];
 }
 
-function conversationMessages() {
+function conversationMessages(): ChatMessage[] {
   return [...presetPrefix(), ...clonePlain(state.messages)];
 }
 
-function removeMessage(message) {
+function removeMessage(message: ChatMessage): void {
   const at = state.messages.indexOf(message);
   if (at >= 0) state.messages.splice(at, 1);
 }
 
-function applyTheme() {
+function applyTheme(): void {
   const dark = state.settings.theme === 'dark' || (state.settings.theme === 'system' && systemTheme?.matches);
   state.settings.dark = Boolean(dark);
   const body = globalThis.document?.body;
@@ -87,21 +99,21 @@ function applyTheme() {
   body.classList.toggle('dark', state.settings.dark);
 }
 
-function agentActivityAt(agent) {
+function agentActivityAt(agent: Agent): number {
   const own = Number(agent.created_at) || Number(String(agent._id).slice(3)) || 0;
   return state.histories.reduce((latest, history) => (
     history.agentId === agent._id ? Math.max(latest, history.updatedAt || history.sortKey || 0) : latest
   ), own);
 }
 
-function sortAgents() {
+function sortAgents(): void {
   state.agents.sort((left, right) => {
     if (Boolean(left.is_top) !== Boolean(right.is_top)) return left.is_top ? -1 : 1;
     return agentActivityAt(right) - agentActivityAt(left);
   });
 }
 
-async function init() {
+async function init(): Promise<void> {
   state.agents = await loadAgents();
   state.histories = loadHistories();
   sortAgents();
@@ -113,7 +125,7 @@ async function init() {
   state.ready = true;
 }
 
-function selectAgent(agent) {
+function selectAgent(agent: Agent | null | undefined): void {
   if (!agent) return;
   stop();
   delete agent.chatId;
@@ -125,15 +137,15 @@ function selectAgent(agent) {
   state.view = 'chat';
 }
 
-function cycleAgent(step) {
+function cycleAgent(step: number): void {
   if (state.agents.length < 2) return;
   const index = state.agents.findIndex((agent) => agent._id === state.currentAgent?._id);
   selectAgent(state.agents[(index + step + state.agents.length) % state.agents.length]);
 }
 
-function addAgent(values) {
+function addAgent(values: AgentFormValues): void {
   const nickname = values.nickname.trim();
-  const agent = {
+  const agent: Agent = {
     _id: `ai@${Date.now()}`,
     nickname,
     info: values.info.trim() || '自定义 AI 好友',
@@ -170,13 +182,13 @@ function addAgent(values) {
   selectAgent(agent);
 }
 
-function updateAgent(agent, values) {
+function updateAgent(agent: Agent, values: AgentFormValues): void {
   const prompt = values.prompt.trim();
   const messages = clonePlain(agent.params?.messages || []);
   if (messages[0]?.role === 'system') messages[0].content = prompt;
   else if (prompt) messages.unshift({ role: 'system', content: prompt });
 
-  const params = { ...agent.params, messages };
+  const params: AgentParams = { ...agent.params, messages };
   if (values.model.trim()) params.model = values.model.trim();
   else delete params.model;
   writeOptionalParams(params, agent.params, values);
@@ -191,7 +203,7 @@ function updateAgent(agent, values) {
     params,
   });
 
-  const incoming = {
+  const incoming: Record<string, string | boolean> = {
     autoPrefix: values.autoPrefix.trim(),
     status: values.status || '',
     callback: values.callback || '',
@@ -215,7 +227,7 @@ function updateAgent(agent, values) {
   saveAgent(agent);
 }
 
-function deleteAgent(agent) {
+function deleteAgent(agent: Agent): void {
   const index = state.agents.indexOf(agent);
   if (index < 0) return;
   removeAgent(agent._id);
@@ -233,24 +245,33 @@ function deleteAgent(agent) {
   state.error = '';
 }
 
-function togglePin(agent) {
+function togglePin(agent: Agent): void {
   agent.is_top = !agent.is_top;
   saveAgent(agent);
   sortAgents();
 }
 
-function newConversation() {
+function newConversation(): void {
   stop();
   state.messages = [];
   presetHidden = Boolean(state.currentAgent);
   if (state.currentAgent) state.currentAgent.chatId = `chat@${state.currentAgent._id}#${Date.now()}`;
 }
 
-async function send(text) {
-  const content = String(text || '').trim();
-  if (!content || state.loading || !state.currentAgent) return false;
+/**
+ * 发出一条用户消息。
+ * @param text 输入框文字。
+ * @param images 随消息一起发送的图片 data URL，可为空。
+ * @returns 真的发出去了返回 `true`；内容为空或正在生成时返回 `false`。
+ */
+async function send(text: string, images: readonly string[] = []): Promise<boolean> {
+  return sendContent(buildUserContent(text, images));
+}
+
+async function sendContent(content: ChatMessage['content']): Promise<boolean> {
+  if (!hasContent(content) || state.loading || !state.currentAgent) return false;
   state.messages.push({ role: 'user', content }, { role: 'assistant', content: '' });
-  const assistantMessage = state.messages.at(-1);
+  const assistantMessage = state.messages.at(-1) as ChatMessage;
   const streamId = ++activeStream;
   state.loading = true;
   state.error = '';
@@ -266,10 +287,11 @@ async function send(text) {
     });
     if (streamId === activeStream && !assistantMessage.content) assistantMessage.content = '服务端没有返回内容。';
   } catch (error) {
-    if (error.name === 'AbortError') {
+    const failure = error as { name?: string; message?: string } | null;
+    if (failure?.name === 'AbortError') {
       if (!assistantMessage.content) removeMessage(assistantMessage);
     } else if (streamId === activeStream) {
-      state.error = error.message || String(error);
+      state.error = failure?.message || String(error);
       assistantMessage.content = `请求失败：${state.error}`;
       assistantMessage.error = true;
     }
@@ -283,7 +305,7 @@ async function send(text) {
   return true;
 }
 
-function stop() {
+function stop(): void {
   if (!state.loading && !abortController) return;
   activeStream += 1;
   abortController?.abort();
@@ -294,7 +316,7 @@ function stop() {
   persistCurrentConversation();
 }
 
-function persistCurrentConversation() {
+function persistCurrentConversation(): void {
   if (!state.currentAgent || !state.messages.some((message) => message.role === 'user')) return;
   const id = state.currentAgent.chatId || `chat@${state.currentAgent._id}#${Date.now()}`;
   state.currentAgent.chatId = id;
@@ -310,7 +332,7 @@ function persistCurrentConversation() {
   sortAgents();
 }
 
-function openHistory(history) {
+function openHistory(history: History): void {
   const agent = state.agents.find((item) => item._id === history.agentId);
   if (!agent) return;
   stop();
@@ -323,39 +345,41 @@ function openHistory(history) {
   state.view = 'chat';
 }
 
-function deleteHistory(history) {
+function deleteHistory(history: History): void {
   removeHistory(history._id);
   state.histories = loadHistories();
   sortAgents();
   if (state.currentAgent?.chatId === history._id) newConversation();
 }
 
-function toggleFavorite(history) {
+function toggleFavorite(history: History): void {
   saveHistory({
     id: history._id,
-    title: history.title,
+    title: history.title || '',
     messages: history.messages,
     favorite: !history.isFavorite,
   });
   state.histories = loadHistories();
 }
 
-function deleteMessage(index) {
+function deleteMessage(index: number): void {
   state.messages.splice(index, 1);
   persistCurrentConversation();
 }
 
-async function retryMessage(index) {
+async function retryMessage(index: number): Promise<void> {
   if (state.loading || !state.currentAgent) return;
   const userIndex = state.messages.slice(0, index).findLastIndex((message) => message.role === 'user');
   if (userIndex < 0) return;
-  const content = messageText(state.messages[userIndex]).trim();
-  if (!content) return;
+  // 原样重放：带图的问题要连图一起重发，不能只把文字取出来
+  const original = clonePlain(state.messages[userIndex].content) as ChatMessage['content'];
+  const content = typeof original === 'string' ? original.trim() : original;
+  if (!hasContent(content)) return;
   state.messages.splice(userIndex);
-  await send(content);
+  await sendContent(content);
 }
 
-function updateSettings(next) {
+function updateSettings(next: Partial<Settings>): void {
   Object.assign(state.settings, next);
   // 线路可能被切换或删除，镜像字段要跟着走，否则 streamChat 还在用旧地址
   syncActiveRoute(state.settings);
@@ -363,15 +387,15 @@ function updateSettings(next) {
   saveSettings(state.settings);
 }
 
-function saveApiRoute(route) {
+function saveApiRoute(route: ApiRoute): void {
   const routes = state.settings.apiRoutes || [];
   const index = routes.findIndex((item) => item.id === route.id);
   if (index < 0) routes.push({ ...route, id: route.id || createRouteId() });
   else routes[index] = { ...routes[index], ...route };
-  updateSettings({ apiRoutes: routes, activeRouteId: route.id || routes.at(-1).id });
+  updateSettings({ apiRoutes: routes, activeRouteId: route.id || routes.at(-1)?.id || '' });
 }
 
-function removeApiRoute(routeId) {
+function removeApiRoute(routeId: string): void {
   const routes = (state.settings.apiRoutes || []).filter((route) => route.id !== routeId);
   // 删掉的正好是当前线路时，把 activeRouteId 清空，让 syncActiveRoute 退回第一条
   const activeRouteId = state.settings.activeRouteId === routeId ? '' : state.settings.activeRouteId;
@@ -380,7 +404,7 @@ function removeApiRoute(routeId) {
   updateSettings({});
 }
 
-function selectApiRoute(routeId) {
+function selectApiRoute(routeId: string): void {
   updateSettings({ activeRouteId: routeId });
 }
 

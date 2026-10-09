@@ -8,13 +8,15 @@ const DOUBLE_RULE = /^\$\$([\s\S]+?)\$\$/;
 // 于是 "$5 和 $10" 中被夹住的 "5 和 " 因结尾是空白而落选，不会被误判成公式。
 const DOLLAR_RULE = /^\$(?![\s$])((?:[^$\n]|\\\$)+?)(?<!\s)\$(?!\d)/;
 
-export function matchBlockMath(src) {
+export type MathMatch = { raw: string; expression: string; display?: boolean };
+
+export function matchBlockMath(src: string): MathMatch | undefined {
   const match = BLOCK_RULE.exec(src);
   if (!match) return undefined;
   return { raw: match[0], expression: match[1] ?? match[2] };
 }
 
-export function matchInlineMath(src) {
+export function matchInlineMath(src: string): MathMatch | undefined {
   const paren = PAREN_RULE.exec(src);
   if (paren) return { raw: paren[0], expression: paren[1], display: false };
 
@@ -27,10 +29,10 @@ export function matchInlineMath(src) {
   return undefined;
 }
 
-export function findBlockStart(src) {
+export function findBlockStart(src: string): number | undefined {
   return src.match(/\$\$|\\\[/)?.index;
 }
 
-export function findInlineStart(src) {
+export function findInlineStart(src: string): number | undefined {
   return src.match(/\$|\\\(/)?.index;
 }

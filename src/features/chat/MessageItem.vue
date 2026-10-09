@@ -2,7 +2,9 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { host } from '../../services/utools.js';
 import AgentAvatar from '../agents/AgentAvatar.vue';
+import { previewImage } from './image-preview.js';
 import { renderMarkdown } from './markdown.js';
+import { droppedImageCount, imageUrls } from './message-content.js';
 import { copyElementImage, isLongMessage, saveElementImage } from './message-tools.js';
 import { messageText } from './token-count.js';
 
@@ -21,9 +23,8 @@ const exporting = ref(false);
 const long = computed(() => isLongMessage(messageText(props.message)));
 const collapsed = ref(long.value);
 const html = computed(() => renderMarkdown(messageText(props.message)));
-const images = computed(() => Array.isArray(props.message.content)
-  ? props.message.content.filter((part) => part.type === 'image_url').map((part) => part.image_url?.url).filter(Boolean)
-  : []);
+const images = computed(() => imageUrls(props.message));
+const dropped = computed(() => droppedImageCount(props.message));
 
 watch(long, (value) => { if (value) collapsed.value = true; });
 
@@ -74,7 +75,12 @@ async function copyImage() {
     <span v-else class="user-avatar"><i class="iconfont icon-user" aria-hidden="true"></i></span>
     <div class="chat-content">
       <span class="nickname">{{ message.role === 'assistant' ? agent.nickname : '我' }}</span>
-      <div v-if="images.length" class="message-images"><img v-for="image in images" :key="image" :src="image" alt="消息图片"></div>
+      <div v-if="images.length || dropped" class="message-images">
+        <button v-for="image in images" :key="image" class="message-image" type="button" title="查看大图" @click="previewImage(image)">
+          <img :src="image" alt="消息图片">
+        </button>
+        <span v-if="dropped" class="message-image-dropped">{{ dropped }} 张图片因体积超限未保存</span>
+      </div>
       <div class="prose-chat" :class="{ collapsed }" v-html="html" @click="openLink"></div>
       <div v-if="index >= 0" class="message-actions">
         <button type="button" :title="copied ? '已复制' : '复制'" :aria-label="copied ? '已复制' : '复制'" @click="copy">
@@ -131,8 +137,10 @@ async function copyImage() {
 .action-svg { width: 14px; height: 14px; }
 .rotated { transform: rotate(180deg); }
 .has-error .prose-chat { border: 1px solid rgba(243, 94, 81, .35); color: #d94b40; }
-.message-images { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
-.message-images img { max-width: 260px; max-height: 260px; border-radius: 6px; object-fit: contain; }
+.message-images { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 8px; }
+.message-image { display: block; border-radius: 6px; overflow: hidden; cursor: zoom-in; }
+.message-images img { max-width: 260px; max-height: 260px; display: block; border-radius: 6px; object-fit: contain; }
+.message-image-dropped { padding: 4px 8px; border: 1px dashed var(--color-border-2); border-radius: 6px; color: var(--color-text-3); font-size: 12px; }
 :deep(.prose-chat p + p), :deep(.prose-chat ul), :deep(.prose-chat ol), :deep(.prose-chat pre), :deep(.prose-chat blockquote) { margin-top: .8em; }
 :deep(.prose-chat ul), :deep(.prose-chat ol) { padding-left: 1.4em; }
 :deep(.prose-chat ul) { list-style: disc; }

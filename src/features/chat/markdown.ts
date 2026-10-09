@@ -3,20 +3,22 @@ import { marked } from 'marked';
 import katex from 'katex';
 import { findBlockStart, findInlineStart, matchBlockMath, matchInlineMath } from './math-delimiters.ts';
 
-DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+DOMPurify.addHook('afterSanitizeAttributes', (node: Element) => {
   if (node.tagName !== 'A') return;
   node.setAttribute('target', '_blank');
   node.setAttribute('rel', 'noopener noreferrer');
 });
 
-function escapeHtml(value) {
+type MathToken = { type: string; raw: string; expression: string; display?: boolean };
+
+function escapeHtml(value: unknown): string {
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
 
-function renderMath(expression, displayMode) {
+function renderMath(expression: string, displayMode: boolean): string {
   try {
     return katex.renderToString(expression.trim(), {
       displayMode,
@@ -34,13 +36,13 @@ function renderMath(expression, displayMode) {
 // 块级：$$...$$ 与 \[...\]
 const blockMath = {
   name: 'blockMath',
-  level: 'block',
+  level: 'block' as const,
   start: findBlockStart,
-  tokenizer(src) {
+  tokenizer(src: string) {
     const match = matchBlockMath(src);
     return match && { type: 'blockMath', ...match };
   },
-  renderer(token) {
+  renderer(token: MathToken) {
     return `<div class="math-block">${renderMath(token.expression, true)}</div>`;
   },
 };
@@ -48,14 +50,14 @@ const blockMath = {
 // 行内：\(...\)、段落中的 $$...$$、以及 $...$
 const inlineMath = {
   name: 'inlineMath',
-  level: 'inline',
+  level: 'inline' as const,
   start: findInlineStart,
-  tokenizer(src) {
+  tokenizer(src: string) {
     const match = matchInlineMath(src);
     return match && { type: 'inlineMath', ...match };
   },
-  renderer(token) {
-    return renderMath(token.expression, token.display);
+  renderer(token: MathToken) {
+    return renderMath(token.expression, Boolean(token.display));
   },
 };
 
@@ -64,6 +66,6 @@ marked.use({ extensions: [blockMath, inlineMath] });
 // KaTeX 靠 class 与内联 style 定位字形，消毒时必须放行，否则公式会散架
 const SANITIZE_OPTIONS = { ADD_ATTR: ['class', 'style'] };
 
-export function renderMarkdown(value) {
+export function renderMarkdown(value: unknown): string {
   return DOMPurify.sanitize(marked.parse(String(value ?? ''), { breaks: true, async: false }), SANITIZE_OPTIONS);
 }

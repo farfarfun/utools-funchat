@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, type PropType } from 'vue';
+import type { AgentAvatar } from '../../types.ts';
+
+// 头像既要画好友文档，也要画市场里还没落盘的角色，所以只认 nickname + avatar 两个字段。
+type AvatarOwner = { nickname?: string; avatar?: AgentAvatar };
 
 const props = defineProps({
-  agent: { type: Object, required: true },
+  agent: { type: Object as PropType<AvatarOwner | null>, required: true },
   size: { type: Number, default: 36 },
 });
 
-const avatar = computed(() => props.agent.avatar || {});
+const avatar = computed<AgentAvatar>(() => props.agent?.avatar || {});
 
 const imageUrl = computed(() => avatar.value.type === 'image' && avatar.value.image
   ? `./avatars/${avatar.value.image}.jpg`
@@ -40,8 +44,8 @@ const failed = ref(false);
       '--avatar-emoji-size': `${emojiSize}px`,
     }"
   >
-    <img v-if="imageUrl && !failed" :src="imageUrl" :alt="agent.nickname" @error="failed = true">
-    <span v-else-if="isEmoji" class="emoji" role="img" :aria-label="agent.nickname">{{ avatar.emoji }}</span>
+    <img v-if="imageUrl && !failed" :src="imageUrl" :alt="agent?.nickname" @error="failed = true">
+    <span v-else-if="isEmoji" class="emoji" role="img" :aria-label="agent?.nickname">{{ avatar.emoji }}</span>
     <i v-else class="icon" :class="iconName" aria-hidden="true"></i>
   </span>
 </template>

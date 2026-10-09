@@ -1,7 +1,11 @@
+import { imageUrls } from './message-content.ts';
+import type { MessageLike } from './message-content.ts';
+
 const CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
 
-type MessagePart = { text?: string; file?: { filename?: string } };
-type MessageLike = string | { content?: string | MessagePart[] | null } | null | undefined;
+// 视觉模型按图块计费，一张常规尺寸的图大致是这个量级。取个中间值，
+// 免得带图会话的 Token 估算差出一个数量级。
+export const IMAGE_TOKEN_ESTIMATE = 258;
 
 /**
  * 提取消息中可展示和参与 Token 估算的文本。
@@ -16,16 +20,17 @@ export function messageText(message: MessageLike): string {
 }
 
 /**
- * 按中日韩字符和 UTF-8 字节数粗略估算单条内容的 Token 数。
+ * 按中日韩字符和 UTF-8 字节数粗略估算单条内容的 Token 数，图片按固定量级计入。
  * @param value 待估算的消息或文本内容。
  * @returns 非负整数 Token 估算值。
  */
 export function estimateTokens(value: MessageLike): number {
+  const images = imageUrls(value).length * IMAGE_TOKEN_ESTIMATE;
   const text = messageText(value).replace(/\s+/gu, ' ').trim();
-  if (!text) return 0;
+  if (!text) return images;
   const cjkCount = text.match(CJK_PATTERN)?.length || 0;
   const other = text.replace(CJK_PATTERN, '').trim();
-  return cjkCount + (other ? Math.ceil(new TextEncoder().encode(other).length / 4) : 0);
+  return images + cjkCount + (other ? Math.ceil(new TextEncoder().encode(other).length / 4) : 0);
 }
 
 /**

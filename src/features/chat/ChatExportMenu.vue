@@ -7,11 +7,11 @@ import { downloadInBrowser, saveElementImage, saveToDisk } from './message-tools
 import { messageText } from './token-count.js';
 
 const store = useChatStore();
-const root = ref();
+const root = ref<HTMLElement>();
 const open = ref(false);
 const closing = ref(false);
-let closeTimer;
-let hoverTimer;
+let closeTimer: ReturnType<typeof setTimeout> | undefined;
+let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 
 const items = [
   { label: '一键复制', value: 'copy', icon: 'copy' },
@@ -28,7 +28,7 @@ const markdown = computed(() => store.state.messages.map((message) => {
   return content.startsWith('|') ? `**${speaker}：**\n${content}` : `**${speaker}：** ${content}`;
 }).join('\n\n'));
 
-function filename(extension) {
+function filename(extension: string): string {
   const now = new Date();
   return `${store.state.currentAgent?.nickname || 'AI'}_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}.${extension}`;
 }
@@ -62,7 +62,7 @@ function htmlDocument() {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${store.state.currentAgent?.nickname || 'AI'} 对话</title><style>body{max-width:860px;margin:40px auto;padding:0 24px;color:#374151;font:14px/1.8 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}pre{padding:14px;overflow:auto;color:#e8eaed;background:#282c34;border-radius:5px}img{max-width:100%}table{border-collapse:collapse}th,td{padding:6px 10px;border:1px solid #e5e6eb}</style></head><body>${body}</body></html>`;
 }
 
-async function save(content, extension, type) {
+async function save(content: string, extension: string, type: string) {
   const name = filename(extension);
   const saved = await saveToDisk({
     title: '保存位置',
@@ -86,18 +86,20 @@ function printPdf() {
   document.body.append(frame);
 }
 
-async function select(value) {
+async function select(value: string) {
   closeMenu();
   if (value === 'copy') await host.copyText(markdown.value.replace(/\*\*(.*?)：\*\*/gu, '$1：'));
-  if (value === 'image') await saveElementImage(document.querySelector('.messages-content'), store.state.currentAgent?.nickname || 'chat');
+  // 消息区还没挂载时 querySelector 会是 null，直接跳过而不是把 null 丢给 html2canvas
+  const messages = value === 'image' ? document.querySelector<HTMLElement>('.messages-content') : null;
+  if (messages) await saveElementImage(messages, store.state.currentAgent?.nickname || 'chat');
   if (value === 'markdown') await save(markdown.value, 'md', 'text/markdown;charset=utf-8');
   if (value === 'html') await save(htmlDocument(), 'html', 'text/html;charset=utf-8');
   if (value === 'docx') await save(htmlDocument(), 'docx', 'application/msword');
   if (value === 'pdf') printPdf();
 }
 
-function closeFromOutside(event) {
-  if (!root.value?.contains(event.target)) closeMenu();
+function closeFromOutside(event: Event) {
+  if (!root.value?.contains(event.target as Node)) closeMenu();
 }
 
 onMounted(() => document.addEventListener('pointerdown', closeFromOutside));

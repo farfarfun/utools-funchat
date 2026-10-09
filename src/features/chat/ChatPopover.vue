@@ -222,7 +222,7 @@ function rangeStyle(row) {
 </template>
 
 <style scoped>
-.chat-popover { position: absolute; z-index: 80; right: 0; bottom: 159px; color: var(--color-text-2); background: var(--color-bg-2); border: 1px solid var(--color-border-2); border-radius: 8px 0 0 8px; box-shadow: 0 4px 10px #0000001a; line-height: 22px; }
+.chat-popover { position: absolute; z-index: 80; right: 0; bottom: calc(var(--composer-height, 160px) - 1px); color: var(--color-text-2); background: var(--color-bg-2); border: 1px solid var(--color-border-2); border-radius: 8px 0 0 8px; box-shadow: 0 4px 10px #0000001a; line-height: 22px; }
 .api-popover { width: 620px; height: 378px; padding-bottom: 12px; }
 .api-tabs { height: 44px; padding: 0 8px; display: flex; align-items: stretch; border-bottom: 1px solid var(--color-border-2); }
 .api-tabs button { position: relative; height: 40px; margin: 0 10px; color: var(--color-text-1); }

@@ -1,3 +1,5 @@
+import type { Agent, AgentFormValues, AgentParams } from '../../types.ts';
+
 export const OPTIONAL_PARAM_DEFAULTS = {
   max_tokens: 0,
   temperature: 0.6,
@@ -6,7 +8,7 @@ export const OPTIONAL_PARAM_DEFAULTS = {
   frequency_penalty: 0,
 };
 
-const FORM_DEFAULTS = {
+const FORM_DEFAULTS: AgentFormValues = {
   group: '',
   model: '',
   type: 'prompt',
@@ -30,8 +32,13 @@ const FORM_DEFAULTS = {
   un_stream: false,
 };
 
-export function agentFormValues(agent) {
-  const values = { ...FORM_DEFAULTS, quick_questions: [] };
+/**
+ * 把好友文档摊平成编辑表单的初始值。
+ * @param agent 要编辑的好友；传空则返回新建用的默认值。
+ * @returns 表单各字段的初始值。
+ */
+export function agentFormValues(agent: Agent | null | undefined): AgentFormValues {
+  const values: AgentFormValues = { ...FORM_DEFAULTS, quick_questions: [] };
   if (!agent) return values;
   for (const [key, fallback] of Object.entries(OPTIONAL_PARAM_DEFAULTS)) {
     values[key] = Number(agent.params?.[key] ?? fallback);
@@ -59,7 +66,14 @@ export function agentFormValues(agent) {
   });
 }
 
-export function writeOptionalParams(target, original, values) {
+/**
+ * 把表单里的可选模型参数写回 params，默认值且原本没有的字段不写入。
+ * @param target 要写入的 params 对象。
+ * @param original 编辑前的 params，用于判断字段原本是否存在。
+ * @param values 表单当前值。
+ * @returns 无返回值。
+ */
+export function writeOptionalParams(target: AgentParams, original: AgentParams | undefined, values: AgentFormValues): void {
   for (const [key, fallback] of Object.entries(OPTIONAL_PARAM_DEFAULTS)) {
     const next = Number(values[key]);
     if (!Number.isFinite(next)) continue;

@@ -1,5 +1,7 @@
 import { host } from './utools.ts';
+import type { AiChunk, UtoolsHost } from './utools.ts';
 
+type AiInvoker = NonNullable<UtoolsHost['ai']>;
 type ChatMessage = { role?: string; content?: unknown };
 type ChatParams = Record<string, unknown> & { model?: string; messages: ChatMessage[]; stream: boolean; max_tokens?: number };
 type StreamChatOptions = {
@@ -58,9 +60,9 @@ export function parseEventStream(text: string): string {
   }).join('');
 }
 
-async function useUtoolsAi(params: ChatParams, onDelta: (chunk: string) => void, signal?: AbortSignal): Promise<void> {
+async function useUtoolsAi(ai: AiInvoker, params: ChatParams, onDelta: (chunk: string) => void, signal?: AbortSignal): Promise<void> {
   let thinking = false;
-  const pending = host.ai(params, (chunk: { reasoning_content?: string; content?: string } = {}) => {
+  const pending = ai(params, (chunk: AiChunk = {}) => {
     if (chunk.reasoning_content) {
       if (!thinking) onDelta(':::thinking\n');
       thinking = true;
@@ -74,9 +76,10 @@ async function useUtoolsAi(params: ChatParams, onDelta: (chunk: string) => void,
       onDelta(chunk.content);
     }
   });
-  if (signal && typeof pending?.abort === 'function') {
-    if (signal.aborted) pending.abort();
-    else signal.addEventListener('abort', () => pending.abort(), { once: true });
+  const abort = pending?.abort?.bind(pending);
+  if (signal && abort) {
+    if (signal.aborted) abort();
+    else signal.addEventListener('abort', abort, { once: true });
   }
   await pending;
 }
@@ -95,8 +98,9 @@ export async function streamChat({ settings, agent, messages, signal, onDelta }:
   };
   if (!params.max_tokens) delete params.max_tokens;
 
-  if (settings.provider === 'utools' && typeof host.ai === 'function') {
-    await useUtoolsAi(params, onDelta, signal);
+  const ai = host.ai;
+  if (settings.provider === 'utools' && typeof ai === 'function') {
+    await useUtoolsAi(ai, params, onDelta, signal);
     return;
   }
 

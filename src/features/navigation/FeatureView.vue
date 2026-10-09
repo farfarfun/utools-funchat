@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { host } from '../../services/utools.js';
 import { useChatStore } from '../../stores/chat.js';
 import { agentFormValues } from '../agents/agent-form.js';
 import AgentAvatar from '../agents/AgentAvatar.vue';
-import { MARKET_AGENTS, MARKET_CATEGORIES } from './market-agents.js';
+import { loadMarketAgents, marketCategories, type MarketAgent } from './market-agents.js';
 import { NOTIFICATIONS } from './notifications.js';
 
-defineProps({ view: { type: String, required: true } });
+const props = defineProps({ view: { type: String, required: true } });
 
 const store = useChatStore();
 const query = ref('');
@@ -17,10 +17,29 @@ const activeNotice = ref(NOTIFICATIONS[0]?.id || '');
 const ORG_URL = 'https://github.com/farfarfun';
 const REPO_URL = 'https://github.com/farfarfun/utools-funchat';
 
+// 市场角色是单独一个 chunk，进入市场时才下载
+const catalog = ref<MarketAgent[]>([]);
+const catalogLoading = ref(false);
+const catalogError = ref('');
+
+watch(() => props.view, async (view) => {
+  if (view !== 'prompts' || catalog.value.length || catalogLoading.value) return;
+  catalogLoading.value = true;
+  catalogError.value = '';
+  try {
+    catalog.value = await loadMarketAgents();
+  } catch (error) {
+    catalogError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    catalogLoading.value = false;
+  }
+}, { immediate: true });
+
+const categories = computed(() => marketCategories(catalog.value));
 const installedNames = computed(() => new Set(store.state.agents.map((agent) => agent.nickname)));
 const marketAgents = computed(() => {
   const value = query.value.trim().toLocaleLowerCase('zh-CN');
-  return MARKET_AGENTS.filter((item) => {
+  return catalog.value.filter((item) => {
     if (category.value !== '全部' && item.category !== category.value) return false;
     if (!value) return true;
     return `${item.nickname} ${item.info} ${item.prompt}`.toLocaleLowerCase('zh-CN').includes(value);
@@ -29,7 +48,7 @@ const marketAgents = computed(() => {
 const notice = computed(() => NOTIFICATIONS.find((item) => item.id === activeNotice.value));
 const unreadCount = computed(() => NOTIFICATIONS.filter((item) => item.unread).length);
 
-function addFromMarket(item) {
+function addFromMarket(item: MarketAgent) {
   if (installedNames.value.has(item.nickname)) return;
   store.addAgent({
     ...agentFormValues(null),
@@ -60,7 +79,7 @@ function openUrl(url) {
         </label>
       </div>
       <nav class="market-tabs" aria-label="角色分类">
-        <button v-for="item in MARKET_CATEGORIES" :key="item" type="button"
+        <button v-for="item in categories" :key="item" type="button"
           :class="{ active: category === item }" @click="category = item">{{ item }}</button>
       </nav>
     </header>
@@ -76,7 +95,13 @@ function openUrl(url) {
         <button v-if="installedNames.has(item.nickname)" class="market-add added" type="button" disabled>已添加</button>
         <button v-else class="market-add" type="button" @click="addFromMarket(item)">添加并开始</button>
       </article>
-      <div v-if="!marketAgents.length" class="market-empty">
+      <div v-if="catalogLoading" class="market-empty">
+        <i class="iconfont icon-bot" aria-hidden="true"></i><span>正在加载角色…</span>
+      </div>
+      <div v-else-if="catalogError" class="market-empty" role="alert">
+        <i class="iconfont icon-bot" aria-hidden="true"></i><span>角色加载失败：{{ catalogError }}</span>
+      </div>
+      <div v-else-if="!marketAgents.length" class="market-empty">
         <i class="iconfont icon-bot" aria-hidden="true"></i><span>没有匹配的角色</span>
       </div>
     </div>

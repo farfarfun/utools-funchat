@@ -10,7 +10,7 @@ const preferences = reactive({
   storage: { bucket: '', accessKeyId: '', accessKeySecret: '', endpoint: '', domain: '', ...store.state.settings.storage },
   audio: { autoTts: false, lang: 'zh', ...store.state.settings.audio },
 });
-const selectedAgents = ref([]);
+const selectedAgents = ref<string[]>([]);
 const modelFilter = ref('');
 const targetModel = ref('');
 const sourceAgents = computed(() => store.state.agents.filter((agent) => {
@@ -28,7 +28,7 @@ function replaceModels() {
   const model = targetModel.value.trim();
   if (!model || !selectedAgents.value.length) return;
   for (const agent of targetAgents.value) {
-    agent.params.model = model;
+    agent.params = { ...agent.params, model };
     saveAgent(agent);
   }
   selectedAgents.value = [];
