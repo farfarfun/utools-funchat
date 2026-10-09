@@ -16,7 +16,8 @@ const props = defineProps({
   busy: { type: Boolean, default: false },
 });
 const emit = defineEmits(['delete', 'retry']);
-const root = ref();
+// 截图只抓这一块：不含头像、昵称和操作按钮，宽度也就等于气泡自身的宽度
+const body = ref();
 const copied = ref(false);
 const imageCopied = ref(false);
 const exporting = ref(false);
@@ -57,12 +58,12 @@ async function withExpanded(action) {
 }
 
 async function exportImage() {
-  await withExpanded(() => saveElementImage(root.value));
+  await withExpanded(() => saveElementImage(body.value));
 }
 
 async function copyImage() {
   await withExpanded(async () => {
-    await copyElementImage(root.value);
+    await copyElementImage(body.value);
     imageCopied.value = true;
     setTimeout(() => { imageCopied.value = false; }, 1000);
   });
@@ -70,18 +71,20 @@ async function copyImage() {
 </script>
 
 <template>
-  <article ref="root" class="chat-box-item" :class="[`chat-${message.role}`, { 'is-last': last, 'has-error': message.error }]">
+  <article class="chat-box-item" :class="[`chat-${message.role}`, { 'is-last': last, 'has-error': message.error }]">
     <AgentAvatar v-if="message.role === 'assistant'" :agent="agent" :size="26" />
     <span v-else class="user-avatar"><i class="iconfont icon-user" aria-hidden="true"></i></span>
     <div class="chat-content">
       <span class="nickname">{{ message.role === 'assistant' ? agent.nickname : '我' }}</span>
-      <div v-if="images.length || dropped" class="message-images">
-        <button v-for="image in images" :key="image" class="message-image" type="button" title="查看大图" @click="previewImage(image)">
-          <img :src="image" alt="消息图片">
-        </button>
-        <span v-if="dropped" class="message-image-dropped">{{ dropped }} 张图片因体积超限未保存</span>
+      <div ref="body" class="message-body" :class="{ exporting }">
+        <div v-if="images.length || dropped" class="message-images">
+          <button v-for="image in images" :key="image" class="message-image" type="button" title="查看大图" @click="previewImage(image)">
+            <img :src="image" alt="消息图片">
+          </button>
+          <span v-if="dropped" class="message-image-dropped">{{ dropped }} 张图片因体积超限未保存</span>
+        </div>
+        <div class="prose-chat" :class="{ collapsed }" v-html="html" @click="openLink"></div>
       </div>
-      <div class="prose-chat" :class="{ collapsed }" v-html="html" @click="openLink"></div>
       <div v-if="index >= 0" class="message-actions">
         <button type="button" :title="copied ? '已复制' : '复制'" :aria-label="copied ? '已复制' : '复制'" @click="copy">
           <i class="iconfont" :class="copied ? 'icon-success' : 'icon-copy'" aria-hidden="true"></i>
@@ -127,6 +130,8 @@ async function copyImage() {
 .chat-user .prose-chat { margin-right: 0; margin-left: 28px; border-radius: 16px 3px 16px 16px; background: var(--user-bubble); }
 .chat-user .prose-chat.collapsed::after { background: linear-gradient(transparent, var(--user-bubble)); }
 .user-avatar { width: 26px; height: 26px; display: grid; flex: 0 0 26px; place-items: center; border-radius: 50%; color: #fff; background: #0ca47f; }
+/* 这 28px 是给对侧留的呼吸位，但出图时它就是一条纯空白，所以导出期间去掉 */
+.message-body.exporting .prose-chat { margin-right: 0; margin-left: 0; }
 .message-actions { position: absolute; bottom: -29px; left: 12px; display: flex; opacity: 0; transition: opacity .2s ease; }
 .chat-user .message-actions { right: 12px; left: auto; }
 .chat-box-item:hover .message-actions, .chat-box-item:focus-within .message-actions { opacity: 1; }

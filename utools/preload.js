@@ -2,7 +2,7 @@ const fs = require('fs');
 
 // 独立窗口默认尺寸：以宽度为主，高度按 16:10 推算（MacBook Pro 的宽高比）。
 // 不再两个方向都按同一比例取，否则窗口会跟着屏幕变形——超宽屏上扁得没法看。
-const WIDTH_RATIO = 0.82;
+const WIDTH_RATIO = 0.7;
 const MAX_HEIGHT_RATIO = 0.88;
 const ASPECT = 16 / 10;
 
