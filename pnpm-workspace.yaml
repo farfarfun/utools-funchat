@@ -1,5 +1,7 @@
 packages:
   - .
 
-onlyBuiltDependencies:
-  - esbuild
+# pnpm 12 起这个配置项从 onlyBuiltDependencies 改名为 allowBuilds，且值是 map 而不是数组。
+# esbuild 要在 postinstall 里落平台二进制，不放行的话 install 会直接报 ERR_PNPM_IGNORED_BUILDS。
+allowBuilds:
+  esbuild: true
