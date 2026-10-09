@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue';
 import { saveAgent } from '../../services/storage.js';
 import { useChatStore } from '../../stores/chat.js';
+import ModelPickerDialog from '../chat/ModelPickerDialog.vue';
 
 const store = useChatStore();
 const preferences = reactive({
@@ -17,6 +18,16 @@ const sourceAgents = computed(() => store.state.agents.filter((agent) => {
 }));
 const targetAgents = computed(() => store.state.agents.filter((agent) => selectedAgents.value.includes(agent._id)));
 const modelOptions = computed(() => store.routeModels.value);
+const picker = ref();
+
+async function chooseTargetModel() {
+  const picked = await picker.value?.open(modelOptions.value, targetModel.value ? [targetModel.value] : [], {
+    mode: 'single',
+    title: '选择目标模型',
+    hint: `共 ${modelOptions.value.length} 个可选模型，批量替换会写入右侧全部好友`,
+  });
+  if (picked?.length) targetModel.value = picked[0];
+}
 
 function savePreferences() {
   store.updateSettings({ ...store.state.settings, ...preferences });
@@ -62,14 +73,14 @@ function replaceModels() {
         <div class="model-transfer">
           <div class="transfer-view source-view">
             <header><b>待选好友</b><span>{{ sourceAgents.length }}</span></header>
-            <label class="model-search"><i class="iconfont icon-search" aria-hidden="true"></i><input v-model="modelFilter" list="model-options" placeholder="搜索模型"><i class="iconfont icon-down select-arrow" aria-hidden="true"></i></label>
+            <label class="model-search"><i class="iconfont icon-search" aria-hidden="true"></i><input v-model="modelFilter" placeholder="按模型筛选好友"></label>
             <div class="transfer-list">
               <button v-for="agent in sourceAgents" :key="agent._id" type="button" @click="selectedAgents.push(agent._id)">{{ agent.nickname }}</button>
             </div>
           </div>
           <div class="transfer-view target-view">
             <header><b>目标好友</b><span>{{ targetAgents.length }}</span><button type="button" title="清空" aria-label="清空" @click="selectedAgents = []"><i class="iconfont icon-delete"></i></button></header>
-            <label class="target-model"><input v-model="targetModel" list="model-options" placeholder="选择目标模型"><i class="iconfont icon-down select-arrow" aria-hidden="true"></i></label>
+            <label class="target-model"><input v-model="targetModel" placeholder="选择或手填目标模型"><button type="button" class="target-browse" title="从模型列表选择" aria-label="从模型列表选择" @click="chooseTargetModel"><i class="iconfont icon-down" aria-hidden="true"></i></button></label>
             <div v-if="targetAgents.length" class="transfer-list">
               <button v-for="agent in targetAgents" :key="agent._id" type="button" @click="selectedAgents = selectedAgents.filter((id) => id !== agent._id)">{{ agent.nickname }}</button>
             </div>
@@ -79,16 +90,19 @@ function replaceModels() {
             </div>
           </div>
         </div>
-        <datalist id="model-options"><option v-for="model in modelOptions" :key="model" :value="model"></option></datalist>
         <button class="replace-button" type="button" @click="replaceModels"><i class="iconfont icon-refresh" aria-hidden="true"></i>一键批量替换模型</button>
         <div class="instructions"><p>使用说明：</p><p>1、在左侧点击需要替换的好友到右侧。</p><p>2、在右侧选择目标模型。</p><p>3、点击“一键替换”按钮进行批量替换模型。</p></div>
       </div>
     </section>
 
   </main>
+
+  <ModelPickerDialog ref="picker" />
 </template>
 
 <style scoped>
+.target-model > .target-browse { position: absolute; top: 0; right: 10px; width: 34px; height: 36px; display: grid; place-items: center; color: var(--color-icon); }
+.target-model > .target-browse:hover { color: var(--color-primary); }
 .switch { position: relative; width: 40px; height: 24px; display: inline-block; flex: 0 0 40px; cursor: pointer; }
 .switch > span { position: absolute; inset: 0; border-radius: 12px; background: var(--color-fill-3); }
 .switch > span::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .2s ease; }
@@ -129,11 +143,9 @@ function replaceModels() {
 .model-search, .target-model { position: relative; height: 50px; padding: 0 10px 14px; display: flex; flex: 0 0 50px; align-items: flex-start; background: var(--color-fill-1); }
 .model-search { position: relative; }
 .model-search i { position: absolute; left: 24px; color: var(--color-icon); font-size: 14px; }
-.model-search .select-arrow, .target-model .select-arrow { left: auto; }
 .model-search input, .target-model input { width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--color-border-2); border-radius: 12px; outline: 0; background: var(--color-bg-3); }
 .model-search input { padding-left: 38px; }
-.model-search input, .target-model input { padding-right: 34px; }
-.select-arrow { position: absolute; top: 10px; right: 23px; color: var(--color-icon); font-size: 12px; pointer-events: none; }
+.target-model input { padding-right: 38px; }
 .model-search input:focus, .target-model input:focus { border-color: var(--color-primary); }
 .reference-settings .transfer-list { flex: 1; overflow-y: auto; }
 .reference-settings .transfer-list { scrollbar-width: none; }

@@ -102,9 +102,10 @@ function closeFromOutside(event: Event) {
   if (!root.value?.contains(event.target as Node)) closeMenu();
 }
 
-// 这些浮层不是原生 dialog，Esc 不会自动关，得自己接
+// 这些浮层不是原生 dialog，Esc 不会自动关，得自己接。
+// 有模态弹窗开着时让它自己处理 Esc，别越过它去关菜单。
 function closeOnEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape') closeMenu();
+  if (event.key === 'Escape' && !document.querySelector('dialog[open]')) closeMenu();
 }
 
 onMounted(() => {

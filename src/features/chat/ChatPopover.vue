@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { fetchModels } from '../../services/models.js';
 import { useChatStore } from '../../stores/chat.js';
+import ModelPickerDialog from './ModelPickerDialog.vue';
 
 const props = defineProps({ kind: { type: String, required: true } });
 const emit = defineEmits(['close']);
@@ -22,6 +23,10 @@ const blankRoute = () => ({ id: '', name: '', provider: 'openai', baseUrl: '', a
 const draft = reactive(blankRoute());
 const pulling = ref(false);
 const pullError = ref('');
+const picker = ref();
+// 只保留勾选结果会丢掉没勾的那些，所以本次拉取的全量清单先留在内存里，
+// 这样「管理」可以反复增删，不必为了找回某个模型重新拉一次。
+const pulledAll = ref<string[]>([]);
 
 const pulledAt = computed(() => {
   if (!draft.modelsFetchedAt) return '';
@@ -29,14 +34,22 @@ const pulledAt = computed(() => {
 });
 
 // 拉取只认输入框里的当前值，所以不用先保存线路就能验证地址和密钥是否可用。
-// 拉到的清单先落在 draft 上，由「保存线路」连同其他字段一起写进设置。
+// 勾选结果落在 draft 上，由「保存线路」连同其他字段一起写进设置。
 async function pullModels() {
   if (pulling.value) return;
   pullError.value = '';
   pulling.value = true;
   try {
-    draft.models = await fetchModels({ provider: draft.provider, baseUrl: draft.baseUrl.trim(), apiKey: draft.apiKey.trim() });
-    draft.modelsFetchedAt = Date.now();
+    const models = await fetchModels({ provider: draft.provider, baseUrl: draft.baseUrl.trim(), apiKey: draft.apiKey.trim() });
+    pulledAll.value = models;
+    pulling.value = false;
+    const kept = await picker.value?.open(models, draft.models, {
+      hint: `拉取到 ${models.length} 个模型，只有勾选的会保存进这条线路`,
+    });
+    if (kept) {
+      draft.models = kept;
+      draft.modelsFetchedAt = Date.now();
+    }
   } catch (error) {
     pullError.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -44,10 +57,19 @@ async function pullModels() {
   }
 }
 
+async function manageModels() {
+  const source = pulledAll.value.length ? pulledAll.value : draft.models;
+  const kept = await picker.value?.open(source, draft.models, {
+    hint: pulledAll.value.length ? '' : '这是已保存的清单；想找回未勾选的模型请重新拉取',
+  });
+  if (kept) draft.models = kept;
+}
+
 function loadDraft(routeId) {
   const route = routes.value.find((item) => item.id === routeId);
   Object.assign(draft, route ? { ...blankRoute(), ...route } : blankRoute());
   pullError.value = '';
+  pulledAll.value = [];
 }
 loadDraft(editingId.value);
 watch(editingId, loadDraft);
@@ -102,18 +124,15 @@ const params = reactive({
 });
 
 const modelOptions = computed(() => store.routeModels.value);
-const modelOpen = ref(false);
-// 输入即筛选；没匹配上就把完整列表摆出来，避免用户打错字后看到空下拉以为坏了
-const modelMatches = computed(() => {
-  const keyword = params.model.trim().toLowerCase();
-  if (!keyword) return modelOptions.value;
-  const hits = modelOptions.value.filter((model) => model.toLowerCase().includes(keyword));
-  return hits.length ? hits : modelOptions.value;
-});
 
-function pickModel(model) {
-  params.model = model;
-  modelOpen.value = false;
+async function chooseModel() {
+  const picked = await picker.value?.open(modelOptions.value, params.model ? [params.model] : [], {
+    mode: 'single',
+    title: '选择模型',
+    hint: `共 ${modelOptions.value.length} 个可选模型，也可以直接在输入框里手填`,
+  });
+  if (!picked?.length) return;
+  params.model = picked[0];
   saveParams();
 }
 
@@ -174,6 +193,7 @@ function rangeStyle(row) {
       </aside>
 
       <form class="api-form" @submit.prevent="saveRoute">
+        <div class="api-fields">
         <label class="form-row required">
           <span>API路线</span>
           <span class="select-control">
@@ -185,10 +205,12 @@ function rangeStyle(row) {
           </span>
         </label>
         <label class="form-row"><span>API别名</span><input v-model="draft.name" placeholder="随意起个别名，方便记忆"></label>
-        <label v-if="draft.provider !== 'utools'" class="form-row api-url required">
+        <label v-if="draft.provider !== 'utools'" class="form-row required">
           <span>API地址</span>
-          <input v-model="draft.baseUrl" placeholder="示例: https://api.gpt.ge 或完整.../completions路径">
-          <small>若不希望API被自动拼接.../chat/completions后缀，请添加#后缀</small>
+          <span class="field-stack">
+            <input v-model="draft.baseUrl" placeholder="示例: https://api.gpt.ge 或完整.../completions路径">
+            <small>若不希望自动拼接 .../chat/completions 后缀，请在地址末尾加 #</small>
+          </span>
         </label>
         <div v-if="draft.provider !== 'utools'" class="form-row stream-row">
           <span>流解析</span>
@@ -201,16 +223,20 @@ function rangeStyle(row) {
           <span>KEY秘钥</span>
           <input v-model="draft.apiKey" type="password" autocomplete="off" placeholder="请复制或输入KEY秘钥（令牌）到这里">
         </label>
-        <div class="form-row models-row">
+        <div class="form-row">
           <span>可用模型</span>
-          <div class="models-control">
-            <button type="button" class="pull-models" :disabled="pulling || (draft.provider !== 'utools' && !draft.baseUrl.trim())" @click="pullModels">
-              <i class="iconfont icon-refresh" :class="{ spinning: pulling }" aria-hidden="true"></i>{{ pulling ? '拉取中…' : '拉取模型列表' }}
-            </button>
-            <small v-if="pullError" class="models-error" role="alert">{{ pullError }}</small>
-            <small v-else-if="draft.models.length">已拉到 {{ draft.models.length }} 个模型，点下方按钮保存后生效<template v-if="pulledAt">（{{ pulledAt }}）</template></small>
-            <small v-else>填好地址与密钥后点一下，模型清单会随线路一起保存</small>
-          </div>
+          <span class="field-stack">
+            <span class="models-buttons">
+              <button type="button" class="pull-models" :disabled="pulling || (draft.provider !== 'utools' && !draft.baseUrl.trim())" @click="pullModels">
+                <i class="iconfont icon-refresh" :class="{ spinning: pulling }" aria-hidden="true"></i>{{ pulling ? '拉取中…' : '拉取模型' }}
+              </button>
+              <button v-if="draft.models.length" type="button" class="manage-models" @click="manageModels">已选 {{ draft.models.length }} 个 · 管理</button>
+            </span>
+            <small v-if="pullError" class="models-error" role="alert" :title="pullError">{{ pullError }}</small>
+            <small v-else-if="draft.models.length">保存线路后生效<template v-if="pulledAt"> · 拉取于 {{ pulledAt }}</template></small>
+            <small v-else>填好地址与密钥后点一下，再勾选要保留的模型</small>
+          </span>
+        </div>
         </div>
         <footer>
           <button v-if="draft.id && draft.id !== store.state.settings.activeRouteId" type="button" class="route-use" @click="useRoute(draft.id)">设为当前</button>
@@ -232,31 +258,22 @@ function rangeStyle(row) {
     <label class="model-row">
       <b>模型选择</b>
       <span class="model-control">
-        <input
-          v-model="params.model"
-          placeholder="请选择或新建模型 ..."
-          role="combobox"
-          aria-autocomplete="list"
-          :aria-expanded="modelOpen"
-          @focus="modelOpen = true"
-          @input="modelOpen = true"
-          @change="saveParams"
-          @keydown.esc.stop="modelOpen = false"
-        >
-        <button type="button" class="model-toggle" :aria-label="modelOpen ? '收起模型列表' : '展开模型列表'" @mousedown.prevent="modelOpen = !modelOpen">
-          <i class="iconfont icon-down" :class="{ flipped: modelOpen }" aria-hidden="true"></i>
-        </button>
-        <!-- mousedown.prevent 保证点选项时输入框不先失焦，否则列表会在 click 之前就关掉 -->
-        <ul v-if="modelOpen && modelMatches.length" class="model-menu" role="listbox">
-          <li v-for="model in modelMatches" :key="model" role="option" :aria-selected="model === params.model">
-            <button type="button" :class="{ chosen: model === params.model }" @mousedown.prevent="pickModel(model)">{{ model }}</button>
-          </li>
-        </ul>
-        <small>注意：也支持手动输入模型名称，注意大小写。</small>
+        <span class="model-input">
+          <input v-model="params.model" placeholder="点右侧从列表选择，或直接手填" @change="saveParams">
+          <button type="button" class="model-browse" @click="chooseModel">
+            <i class="iconfont icon-params" aria-hidden="true"></i>浏览
+          </button>
+        </span>
+        <small>手填也可以，注意区分大小写。</small>
       </span>
     </label>
     <label v-for="row in parameterRows" :key="row.key" class="parameter-row"><span>{{ row.label }} <small>ⓘ</small></span><input v-model.number="params[row.key]" type="range" :min="row.min" :max="row.max" :step="row.step" :style="rangeStyle(row)" @input="saveParams"><input v-model.number="params[row.key]" class="parameter-number" type="number" :min="row.min" :max="row.max" :step="row.step" @change="saveParams"></label>
+
   </section>
+
+  <!-- 两个面板共用一个弹窗实例：分别挂在两个 v-if 分支里的话，kind 切换时 ref 的
+       解绑与绑定顺序没有保证，可能留下一个 null -->
+  <ModelPickerDialog ref="picker" />
 </template>
 
 <style scoped>
@@ -282,28 +299,32 @@ function rangeStyle(row) {
 .route-add { margin-top: auto; padding: 7px; flex: 0 0 auto; border: 1px dashed var(--color-border-2); border-radius: 8px; color: var(--color-text-2); font-size: 12px; }
 .route-add:hover { border-color: var(--color-primary); color: var(--color-primary); }
 
-.api-form { min-width: 0; padding: 18px 20px 8px; display: flex; flex: 1; flex-direction: column; }
-.form-row { min-height: 32px; margin-bottom: 12px; display: flex; align-items: center; }
-.models-row { align-items: flex-start; }
-.models-row > span:first-child { padding-top: 7px; }
-.models-control { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
-.models-control small { color: var(--color-text-3); font-size: 12px; line-height: 1.4; }
-.models-control .models-error { color: #f53f3f; overflow-wrap: anywhere; }
-.pull-models { height: 32px; padding: 0 14px; display: inline-flex; flex: 0 0 auto; align-self: flex-start; align-items: center; gap: 6px; border: 1px solid var(--color-border-2); border-radius: 12px; color: var(--color-text-2); }
+.api-form { min-width: 0; padding: 18px 20px 12px; display: flex; flex: 1; flex-direction: column; }
+/* 字段区独立滚动：字段再多也只是这里出滚动条，保存按钮不会被顶出可视区 */
+.api-fields { min-height: 0; margin: -4px -4px 10px; padding: 4px; flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.api-fields::-webkit-scrollbar { width: 6px; }
+.api-fields::-webkit-scrollbar-thumb { border-radius: 3px; background: var(--color-fill-3); }
+/* 输入 + 下方提示竖排，取代原来给提示做绝对定位、再给整行留 32px 的做法 */
+.field-stack { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
+.field-stack > small { color: var(--color-text-3); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.models-buttons { display: flex; align-items: center; gap: 8px; }
+.models-error { color: #f53f3f; }
+.form-row { min-height: 32px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 10px; }
+.form-row > span:first-child { padding-top: 6px; }
+.pull-models, .manage-models { height: 32px; padding: 0 14px; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; border: 1px solid var(--color-border-2); border-radius: 12px; color: var(--color-text-2); font-size: 13px; white-space: nowrap; }
+.manage-models:hover { color: var(--color-primary); border-color: var(--color-primary); }
 .pull-models:hover:not(:disabled) { color: var(--color-primary); border-color: var(--color-primary); }
 .pull-models:disabled { opacity: .5; }
 .pull-models .iconfont { font-size: 14px; }
 .pull-models .spinning { animation: pull-spin .9s linear infinite; }
 @keyframes pull-spin { to { transform: rotate(360deg); } }
-.form-row > span:first-child { width: 62px; flex: 0 0 62px; padding-right: 10px; text-align: right; }
+.form-row > span:first-child { width: 62px; flex: 0 0 62px; text-align: right; }
 .form-row.required > span:first-child::before { content: "*"; margin-right: 3px; color: #f53f3f; }
-.form-row > input, .select-control { min-width: 0; height: 32px; padding: 0 13px; flex: 1; border: 1px solid transparent; border-radius: 12px; outline: 0; background: var(--color-fill-2); }
-.form-row > input:focus, .select-control:focus-within { border-color: var(--color-primary); background: var(--color-bg-2); }
+.form-row > input, .field-stack > input, .select-control { min-width: 0; height: 32px; padding: 0 13px; flex: 1 0 auto; border: 1px solid transparent; border-radius: 12px; outline: 0; background: var(--color-fill-2); }
+.form-row > input:focus, .field-stack > input:focus, .select-control:focus-within { border-color: var(--color-primary); background: var(--color-bg-2); }
 .select-control { position: relative; padding: 0; }
 .select-control select { width: 100%; height: 30px; padding: 0 34px 0 13px; appearance: none; border: 0; outline: 0; color: inherit; background: transparent; }
 .select-control i { position: absolute; top: 6px; right: 13px; color: var(--color-icon); font-size: 12px; pointer-events: none; }
-.api-url { position: relative; margin-bottom: 32px; }
-.api-url small { position: absolute; top: 32px; left: 62px; color: var(--color-text-3); font-size: 12px; }
 .stream-row > div { height: 32px; display: flex; align-items: center; gap: 20px; }
 .stream-row label { display: flex; align-items: center; gap: 8px; }
 .stream-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
@@ -322,18 +343,16 @@ function rangeStyle(row) {
 .params-popover header b { color: var(--color-text-1); font-weight: 500; }
 .params-popover header small { margin-left: 8px; color: #f759ab; font-size: 12px; }
 .params-popover header span { margin-left: auto; color: var(--color-text-3); font-size: 12px; }
-.model-row { height: 62px; display: flex; align-items: flex-start; }
+.model-row { margin-bottom: 10px; display: flex; align-items: flex-start; }
 .model-row > b { width: 90px; padding-top: 7px; font-weight: 400; text-align: right; }
 .model-control { position: relative; min-width: 0; margin-left: 18px; flex: 1; }
-.model-control > input { width: 100%; height: 32px; padding: 0 34px 0 13px; border: 1px solid transparent; border-radius: 12px; outline: 0; background: var(--color-fill-2); }
-.model-control > input:focus { border-color: var(--color-primary); background: var(--color-bg-2); }
-.model-toggle { position: absolute; top: 0; right: 0; width: 34px; height: 32px; display: grid; place-items: center; color: var(--color-icon); }
-.model-toggle .flipped { display: inline-block; transform: rotate(180deg); }
-.model-menu { position: absolute; z-index: 10; top: 36px; right: 0; left: 0; max-height: 176px; padding: 4px; overflow-y: auto; border: 1px solid var(--color-border-2); border-radius: 12px; background: var(--color-bg-2); box-shadow: 0 6px 16px #00000024; }
-.model-menu button { width: 100%; padding: 0 10px; border-radius: 8px; color: var(--color-text-1); font-size: 13px; line-height: 30px; text-align: left; }
-.model-menu button:hover { background: var(--color-fill-1); }
-.model-menu button.chosen { color: var(--color-primary); background: var(--color-primary-light-1); }
-.model-control > small { display: block; color: var(--color-text-3); font-size: 12px; }
+.model-input { display: flex; align-items: center; gap: 8px; }
+.model-input > input { min-width: 0; height: 32px; padding: 0 13px; flex: 1; border: 1px solid transparent; border-radius: 12px; outline: 0; color: inherit; background: var(--color-fill-2); }
+.model-input > input:focus { border-color: var(--color-primary); background: var(--color-bg-2); }
+.model-browse { height: 32px; padding: 0 14px; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; border: 1px solid var(--color-border-2); border-radius: 12px; color: var(--color-text-2); font-size: 13px; white-space: nowrap; }
+.model-browse:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.model-browse .iconfont { font-size: 14px; }
+.model-control > small { display: block; margin-top: 6px; color: var(--color-text-3); font-size: 12px; }
 .parameter-row { height: 44px; display: flex; align-items: center; }
 .parameter-row > span { width: 90px; flex: 0 0 90px; color: var(--color-text-1); }
 .parameter-row > span small { color: #b7bdc7; font-size: 11px; }

@@ -129,9 +129,12 @@ function closeFromOutside(event) {
   if (!root.value?.contains(event.target)) popup.value = '';
 }
 
-// API 浮层和几个下拉菜单都不是原生 dialog，Esc 不会自动关，得自己接
+// API 浮层和几个下拉菜单都不是原生 dialog，Esc 不会自动关，得自己接。
+// 但浮层里可能又开着模型选择弹窗，这一下 Esc 该只关那个弹窗，不能把浮层一起收掉。
 function closeOnEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape' && popup.value) popup.value = '';
+  if (event.key !== 'Escape' || !popup.value) return;
+  if (document.querySelector('dialog[open]')) return;
+  popup.value = '';
 }
 
 onMounted(() => {

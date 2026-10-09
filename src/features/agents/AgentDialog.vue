@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue';
 import { useChatStore } from '../../stores/chat.js';
 import { agentFormValues } from './agent-form.js';
 import AgentAvatar from './AgentAvatar.vue';
+import ModelPickerDialog from '../chat/ModelPickerDialog.vue';
 
 const store = useChatStore();
 const dialog = ref();
@@ -16,6 +17,15 @@ const previewAgent = computed(() => ({
   avatar: editing.value?.avatar || { type: 'icon', icon: 'icon-a1', color: '#0ca47f' },
 }));
 const modelOptions = computed(() => store.routeModels.value);
+const picker = ref();
+
+async function chooseModel() {
+  const picked = await picker.value?.open(modelOptions.value, form.model ? [form.model] : [], {
+    mode: 'single',
+    hint: `共 ${modelOptions.value.length} 个可选模型，也可以直接在输入框里手填`,
+  });
+  if (picked?.length) form.model = picked[0];
+}
 const parameterRows = [
   { key: 'contextLength', label: '上下文数', min: 2, max: 36, step: 1 },
   { key: 'max_tokens', label: '最大回复', min: 0, max: 16384, step: 1 },
@@ -79,8 +89,16 @@ defineExpose({ open });
 
       <section v-if="tab === 'basic'" class="dialog-pane basic-pane" :class="{ 'function-pane': form.type === 'function' }">
         <label class="form-row"><span>分组选择</span><span class="control select-control"><select v-model="form.group"><option value="">请选择分组，留空将使用默认分组...</option><option value="default">默认</option></select><i class="iconfont icon-down" aria-hidden="true"></i></span></label>
-        <label class="form-row model-row"><span>模型选择</span><span class="control input-control"><input v-model="form.model" list="agent-model-options" placeholder="请选择或新建模型 ..."><i class="iconfont icon-down" aria-hidden="true"></i><small>注意：也支持手动输入模型名称，注意大小写。</small></span></label>
-        <datalist id="agent-model-options"><option v-for="model in modelOptions" :key="model" :value="model"></option></datalist>
+        <label class="form-row model-row">
+          <span>模型选择</span>
+          <span class="control model-field">
+            <span class="model-input">
+              <input v-model="form.model" placeholder="点右侧从列表选择，或直接手填">
+              <button type="button" class="model-browse" @click="chooseModel"><i class="iconfont icon-params" aria-hidden="true"></i>浏览</button>
+            </span>
+            <small>手填也可以，注意区分大小写。</small>
+          </span>
+        </label>
         <div class="form-row type-row"><span>类型</span><div class="radios"><label><input v-model="form.type" type="radio" value="prompt">指令型好友</label><label><input v-model="form.type" type="radio" value="function">函数型好友（<b>开发手册</b>）</label></div></div>
         <label class="form-row required"><span>昵称</span><input v-model="form.nickname" required maxlength="30" placeholder="Ai昵称"></label>
         <label class="form-row"><span>备注</span><input v-model="form.info" maxlength="60" placeholder="Ai信息备注"></label>
@@ -114,6 +132,8 @@ defineExpose({ open });
       <footer><button type="button" @click="dialog.close()">取消</button><button class="primary" type="submit">保存</button></footer>
     </form>
   </dialog>
+
+  <ModelPickerDialog ref="picker" />
 </template>
 
 <style scoped>
@@ -145,6 +165,12 @@ defineExpose({ open });
 .select-control > i, .input-control > i { position: absolute; top: 6px; right: 13px; color: var(--color-icon); font-size: 12px; pointer-events: none; }
 .model-row { margin-bottom: 20px; }
 .model-row .control { min-height: 55px; }
+.model-field { display: flex; flex-direction: column; gap: 6px; }
+.model-input { display: flex; align-items: center; gap: 8px; }
+.model-input > input { min-width: 0; flex: 1; }
+.model-browse { height: 32px; padding: 0 14px; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; border: 1px solid var(--color-border-2); border-radius: 12px; color: var(--color-text-2); font-size: 13px; white-space: nowrap; }
+.model-browse:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.model-browse .iconfont { font-size: 14px; }
 .type-row { margin-bottom: 20px; align-items: center; }
 .type-row > span:first-child { padding-top: 0; }
 .radios { display: flex; align-items: center; gap: 24px; }
