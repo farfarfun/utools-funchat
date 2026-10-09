@@ -15,7 +15,7 @@ const previewAgent = computed(() => ({
   nickname: form.nickname || 'AI',
   avatar: editing.value?.avatar || { type: 'icon', icon: 'icon-a1', color: '#0ca47f' },
 }));
-const modelOptions = computed(() => [...new Set(store.state.agents.map((agent) => agent.params?.model).filter(Boolean))]);
+const modelOptions = computed(() => store.routeModels.value);
 const parameterRows = [
   { key: 'contextLength', label: '上下文数', min: 2, max: 36, step: 1 },
   { key: 'max_tokens', label: '最大回复', min: 0, max: 16384, step: 1 },

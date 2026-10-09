@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { fetchModels } from '../../services/models.js';
 import { useChatStore } from '../../stores/chat.js';
 
 const props = defineProps({ kind: { type: String, required: true } });
@@ -17,12 +18,36 @@ const tab = ref('routes');
 const routes = computed(() => store.state.settings.apiRoutes || []);
 const editingId = ref(store.state.settings.activeRouteId || routes.value[0]?.id || '');
 
-const blankRoute = () => ({ id: '', name: '', provider: 'openai', baseUrl: '', apiKey: '', streamMode: 'client' });
+const blankRoute = () => ({ id: '', name: '', provider: 'openai', baseUrl: '', apiKey: '', streamMode: 'client', models: [] as string[], modelsFetchedAt: 0 });
 const draft = reactive(blankRoute());
+const pulling = ref(false);
+const pullError = ref('');
+
+const pulledAt = computed(() => {
+  if (!draft.modelsFetchedAt) return '';
+  return new Date(draft.modelsFetchedAt).toLocaleString('zh-CN', { hour12: false });
+});
+
+// 拉取只认输入框里的当前值，所以不用先保存线路就能验证地址和密钥是否可用。
+// 拉到的清单先落在 draft 上，由「保存线路」连同其他字段一起写进设置。
+async function pullModels() {
+  if (pulling.value) return;
+  pullError.value = '';
+  pulling.value = true;
+  try {
+    draft.models = await fetchModels({ provider: draft.provider, baseUrl: draft.baseUrl.trim(), apiKey: draft.apiKey.trim() });
+    draft.modelsFetchedAt = Date.now();
+  } catch (error) {
+    pullError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    pulling.value = false;
+  }
+}
 
 function loadDraft(routeId) {
   const route = routes.value.find((item) => item.id === routeId);
   Object.assign(draft, route ? { ...blankRoute(), ...route } : blankRoute());
+  pullError.value = '';
 }
 loadDraft(editingId.value);
 watch(editingId, loadDraft);
@@ -45,6 +70,8 @@ function saveRoute() {
     baseUrl: draft.baseUrl.trim(),
     apiKey: draft.apiKey.trim(),
     streamMode: draft.streamMode,
+    models: draft.models,
+    modelsFetchedAt: draft.modelsFetchedAt,
   };
   store.saveApiRoute(saved);
   editingId.value = store.state.settings.activeRouteId;
@@ -74,7 +101,7 @@ const params = reactive({
   presence_penalty: paramValue(store.state.currentAgent?.params?.presence_penalty, 0),
 });
 
-const modelOptions = computed(() => [...new Set(store.state.agents.map((agent) => agent.params?.model).filter(Boolean))]);
+const modelOptions = computed(() => store.routeModels.value);
 const modelOpen = ref(false);
 // 输入即筛选；没匹配上就把完整列表摆出来，避免用户打错字后看到空下拉以为坏了
 const modelMatches = computed(() => {
@@ -174,6 +201,17 @@ function rangeStyle(row) {
           <span>KEY秘钥</span>
           <input v-model="draft.apiKey" type="password" autocomplete="off" placeholder="请复制或输入KEY秘钥（令牌）到这里">
         </label>
+        <div class="form-row models-row">
+          <span>可用模型</span>
+          <div class="models-control">
+            <button type="button" class="pull-models" :disabled="pulling || (draft.provider !== 'utools' && !draft.baseUrl.trim())" @click="pullModels">
+              <i class="iconfont icon-refresh" :class="{ spinning: pulling }" aria-hidden="true"></i>{{ pulling ? '拉取中…' : '拉取模型列表' }}
+            </button>
+            <small v-if="pullError" class="models-error" role="alert">{{ pullError }}</small>
+            <small v-else-if="draft.models.length">已拉到 {{ draft.models.length }} 个模型，点下方按钮保存后生效<template v-if="pulledAt">（{{ pulledAt }}）</template></small>
+            <small v-else>填好地址与密钥后点一下，模型清单会随线路一起保存</small>
+          </div>
+        </div>
         <footer>
           <button v-if="draft.id && draft.id !== store.state.settings.activeRouteId" type="button" class="route-use" @click="useRoute(draft.id)">设为当前</button>
           <button v-if="draft.id" type="button" class="route-delete" @click="deleteRoute(draft.id)">删除</button>
@@ -246,6 +284,17 @@ function rangeStyle(row) {
 
 .api-form { min-width: 0; padding: 18px 20px 8px; display: flex; flex: 1; flex-direction: column; }
 .form-row { min-height: 32px; margin-bottom: 12px; display: flex; align-items: center; }
+.models-row { align-items: flex-start; }
+.models-row > span:first-child { padding-top: 7px; }
+.models-control { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
+.models-control small { color: var(--color-text-3); font-size: 12px; line-height: 1.4; }
+.models-control .models-error { color: #f53f3f; overflow-wrap: anywhere; }
+.pull-models { height: 32px; padding: 0 14px; display: inline-flex; flex: 0 0 auto; align-self: flex-start; align-items: center; gap: 6px; border: 1px solid var(--color-border-2); border-radius: 12px; color: var(--color-text-2); }
+.pull-models:hover:not(:disabled) { color: var(--color-primary); border-color: var(--color-primary); }
+.pull-models:disabled { opacity: .5; }
+.pull-models .iconfont { font-size: 14px; }
+.pull-models .spinning { animation: pull-spin .9s linear infinite; }
+@keyframes pull-spin { to { transform: rotate(360deg); } }
 .form-row > span:first-child { width: 62px; flex: 0 0 62px; padding-right: 10px; text-align: right; }
 .form-row.required > span:first-child::before { content: "*"; margin-right: 3px; color: #f53f3f; }
 .form-row > input, .select-control { min-width: 0; height: 32px; padding: 0 13px; flex: 1; border: 1px solid transparent; border-radius: 12px; outline: 0; background: var(--color-fill-2); }

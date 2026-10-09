@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { onBeforeUnmount, reactive, ref } from 'vue';
 
 type ConfirmOptions = { title?: string; message?: string; confirmText?: string };
 
@@ -26,6 +26,12 @@ function closed() {
   resolveOpen?.(confirmed);
   resolveOpen = null;
 }
+
+// 对话框连同宿主组件一起被卸载时 close 事件不会触发，调用方的 await 会永久挂起
+onBeforeUnmount(() => {
+  resolveOpen?.(false);
+  resolveOpen = null;
+});
 
 defineExpose({ open });
 </script>

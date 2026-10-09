@@ -129,9 +129,18 @@ function closeFromOutside(event) {
   if (!root.value?.contains(event.target)) popup.value = '';
 }
 
-onMounted(() => document.addEventListener('pointerdown', closeFromOutside));
+// API 浮层和几个下拉菜单都不是原生 dialog，Esc 不会自动关，得自己接
+function closeOnEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape' && popup.value) popup.value = '';
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', closeFromOutside);
+  document.addEventListener('keydown', closeOnEscape);
+});
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', closeFromOutside);
+  document.removeEventListener('keydown', closeOnEscape);
   clearTimeout(noticeTimer);
 });
 </script>
@@ -147,14 +156,6 @@ onBeforeUnmount(() => {
         <button v-if="store.state.loading" type="button" title="停止生成" aria-label="停止生成" @click="store.stop">
           <i class="iconfont icon-close" aria-hidden="true"></i>
         </button>
-        <button v-else type="button" title="语音输入暂未接入" aria-label="语音输入暂未接入" disabled>
-          <span class="voice-rec-icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48"><g fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="3.2"><rect width="16" height="27" x="16" y="4" rx="7"></rect><path stroke-linecap="round" d="M9 23c0 8.284 6.716 15 15 15s15-6.716 15-15M24 38v6"></path></g></svg>
-          </span>
-        </button>
-        <button type="button" title="语音播报暂未接入" aria-label="语音播报暂未接入" disabled><i class="iconfont icon-volume-off" aria-hidden="true"></i></button>
-        <button type="button" title="话题记录" aria-label="话题记录" @click="store.state.historyOpen = true"><i class="iconfont icon-huati" aria-hidden="true"></i></button>
-        <button type="button" title="新话题" aria-label="新话题" @click="store.newConversation"><i class="iconfont icon-clear" aria-hidden="true"></i></button>
         <button class="attach-button" type="button" :title="`添加图片（也可直接粘贴或拖入，最多 ${MAX_ATTACHMENTS} 张）`" aria-label="添加图片" @click="picker?.click()">
           <!-- 图标字体里没有语义明确的图片图标，内联 SVG 保证画出来确实是「图片」 -->
           <svg class="image-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -245,9 +246,7 @@ onBeforeUnmount(() => {
 .whirlwind-icon { width: 16px; height: 16px; flex: 0 0 16px; }
 .style-menu { right: -45px; width: 118px; }
 .more-menu { right: -16px; bottom: 22px; width: 140px; }
-.voice-rec-icon { position: relative; width: 100%; height: 100%; display: block; }
-.voice-rec-icon svg { position: absolute; top: 50%; left: 50%; width: 18px; height: 18px; color: var(--color-icon); transform: translate(-50%, -50%); }
-.tool-group:first-child button:nth-child(2) .iconfont, .tool-group:first-child button:nth-child(3) .iconfont, .tool-group-end button:nth-child(2) .iconfont { font-size: 18px; line-height: 28px; }
+.tool-group-end button:nth-child(2) .iconfont { font-size: 18px; line-height: 28px; }
 .composer-tools .iconfont, .composer-tools .icon { display: block; line-height: 1.5715; }
 .tool-group-end { margin-left: auto; }
 .textarea-wrap { height: 64px; flex: 0 0 64px; cursor: text; }

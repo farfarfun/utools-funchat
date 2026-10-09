@@ -1,5 +1,6 @@
 import { computed, reactive } from 'vue';
 import { streamChat } from '../services/chat.ts';
+import { host } from '../services/utools.ts';
 import { clonePlain } from '../services/plain-clone.ts';
 import {
   loadAgents,
@@ -12,6 +13,7 @@ import {
   saveSettings,
   createRouteId,
   syncActiveRoute,
+  activeRoute,
 } from '../services/storage.ts';
 import { buildUserContent, hasContent, withPrefix } from '../features/chat/message-content.ts';
 import { estimateConversationTokens, messageText } from '../features/chat/token-count.ts';
@@ -99,6 +101,12 @@ function applyTheme(): void {
   body.classList.toggle('dark', state.settings.dark);
 }
 
+// 插件在 uTools 主面板里的高度由宿主控制，对应设置里的「插件高度」。
+// 以前没人调这个接口，那项设置其实一直是空转的。分离成独立窗口后 uTools 会忽略它。
+function applyPluginHeight(): void {
+  host.setExpendHeight?.(Number(state.settings.windowHeight) || 660);
+}
+
 function agentActivityAt(agent: Agent): number {
   const own = Number(agent.created_at) || Number(String(agent._id).slice(3)) || 0;
   return state.histories.reduce((latest, history) => (
@@ -121,6 +129,7 @@ async function init(): Promise<void> {
   state.messages = [];
   presetHidden = Boolean(state.currentAgent);
   applyTheme();
+  applyPluginHeight();
   systemTheme?.addEventListener?.('change', applyTheme);
   state.ready = true;
 }
@@ -384,6 +393,7 @@ function updateSettings(next: Partial<Settings>): void {
   // 线路可能被切换或删除，镜像字段要跟着走，否则 streamChat 还在用旧地址
   syncActiveRoute(state.settings);
   applyTheme();
+  applyPluginHeight();
   saveSettings(state.settings);
 }
 
@@ -408,6 +418,14 @@ function selectApiRoute(routeId: string): void {
   updateSettings({ activeRouteId: routeId });
 }
 
+// 当前线路拉回来的模型清单。好友自身用过的模型也并进来，
+// 这样手动填过、或清单里已经下架的模型不会从选择器里消失。
+const routeModels = computed(() => {
+  const fetched = activeRoute(state.settings)?.models || [];
+  const used = state.agents.map((agent) => agent.params?.model).filter(Boolean) as string[];
+  return [...new Set([...fetched, ...used])];
+});
+
 const tokenCount = computed(() => estimateConversationTokens(state.messages));
 const agentHistories = computed(() => state.histories.filter((history) => history.agentId === state.currentAgent?._id));
 
@@ -416,6 +434,7 @@ export function useChatStore() {
     state,
     tokenCount,
     agentHistories,
+    routeModels,
     init,
     selectAgent,
     cycleAgent,
@@ -426,6 +445,7 @@ export function useChatStore() {
     newConversation,
     send,
     stop,
+    persistCurrentConversation,
     openHistory,
     deleteHistory,
     toggleFavorite,

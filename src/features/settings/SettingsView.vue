@@ -7,8 +7,6 @@ const store = useChatStore();
 const preferences = reactive({
   windowHeight: Number(store.state.settings.windowHeight) || 660,
   autoSort: store.state.settings.autoSort ?? true,
-  storage: { bucket: '', accessKeyId: '', accessKeySecret: '', endpoint: '', domain: '', ...store.state.settings.storage },
-  audio: { autoTts: false, lang: 'zh', ...store.state.settings.audio },
 });
 const selectedAgents = ref<string[]>([]);
 const modelFilter = ref('');
@@ -18,7 +16,7 @@ const sourceAgents = computed(() => store.state.agents.filter((agent) => {
   return !modelFilter.value || (agent.params?.model || '').toLocaleLowerCase().includes(modelFilter.value.toLocaleLowerCase());
 }));
 const targetAgents = computed(() => store.state.agents.filter((agent) => selectedAgents.value.includes(agent._id)));
-const modelOptions = computed(() => [...new Set(store.state.agents.map((agent) => agent.params?.model).filter(Boolean))]);
+const modelOptions = computed(() => store.routeModels.value);
 
 function savePreferences() {
   store.updateSettings({ ...store.state.settings, ...preferences });
@@ -87,27 +85,6 @@ function replaceModels() {
       </div>
     </section>
 
-    <section class="reference-card storage-card">
-      <div class="reference-label">文件存储</div>
-      <div class="reference-body storage-body">
-        <p class="notice">插件文件存储支持兼容 S3 API 的对象存储服务，可配置存储桶、访问密钥、服务器端点和绑定域名。</p>
-        <input v-model="preferences.storage.bucket" placeholder="Bucket 存储桶名称">
-        <input v-model="preferences.storage.accessKeyId" placeholder="AccessKeyId 访问密钥 ID">
-        <input v-model="preferences.storage.accessKeySecret" type="password" placeholder="AccessKeySecret 访问密钥">
-        <input v-model="preferences.storage.endpoint" placeholder="S3服务器端点，https://...">
-        <input v-model="preferences.storage.domain" placeholder="（可选）绑定域名">
-        <button type="button" @click="savePreferences">保存存储设置</button>
-      </div>
-    </section>
-
-    <section class="reference-card audio-card">
-      <div class="reference-label">语音对话</div>
-      <div class="reference-body audio-body">
-        <div class="inline-body"><label class="switch"><input v-model="preferences.audio.autoTts" type="checkbox" role="switch" @change="savePreferences"><span></span></label><small>语音消息发送后，是否自动播报Ai回复的消息。</small></div>
-        <input v-model="preferences.audio.lang" placeholder="请选择首选语言" @change="savePreferences">
-        <small>首选国家语言，可以手动输入，请参考 ISO 639-1 代码表。</small>
-      </div>
-    </section>
   </main>
 </template>
 
@@ -170,13 +147,6 @@ function replaceModels() {
 .replace-button i { margin-right: 8px; color: #fff; }
 .reference-settings .instructions { height: 101px; margin-top: 12px; color: var(--color-text-3); }
 .reference-settings .instructions p { height: 25px; margin: 0; }
-.storage-card { min-height: 470px; }
-.storage-body .notice { min-height: 51px; margin: 0 0 20px; padding: 12px; border: 1px solid rgba(52, 211, 153, .3); border-radius: 12px; color: #047857; background: rgba(52, 211, 153, .08); font-size: 13px; }
-.storage-body > input, .audio-body > input { width: 100%; height: 36px; margin-bottom: 12px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px; outline: 0; background: var(--color-fill-2); }
-.storage-body > input:focus, .audio-body > input:focus { border-color: var(--color-primary); background: var(--color-bg-2); }
-.storage-body > button { height: 32px; margin-top: 8px; padding: 0 15px; border-radius: 12px; color: #fff; background: var(--color-primary); }
-.audio-card { min-height: 216px; }
-.audio-body > input { margin-top: 16px; }
 @media (max-width: 720px) {
   .reference-settings { padding: 12px; }
   .reference-card { min-width: 650px; padding: 24px; }

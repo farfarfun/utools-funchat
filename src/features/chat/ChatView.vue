@@ -14,6 +14,10 @@ const greeting = computed(() => ({ role: 'assistant', content: store.state.curre
 const needsApiSetup = computed(() => store.state.settings.provider !== 'utools' && !store.state.settings.apiKey && !store.state.settings.baseUrl);
 const quickQuestions = computed(() => (store.state.messages.length ? [] : store.state.currentAgent?.quick_questions || []));
 const apiSetup = reactive({ apiKey: store.state.settings.apiKey || '', baseUrl: store.state.settings.baseUrl || '' });
+// 标题栏显示的话题名：已落盘的话题取它的标题，新话题还没有标题就先留空
+const topicTitle = computed(() => store.agentHistories.value
+  .find((history) => history._id === store.state.currentAgent?.chatId)?.title || '');
+const headerModel = computed(() => store.state.currentAgent?.params?.model || store.state.settings.model || '');
 
 const messageKeys = new WeakMap();
 let messageKeySeed = 0;
@@ -91,7 +95,26 @@ watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], a
 
 <template>
   <main class="chat-view">
-    <ChatExportMenu />
+    <header v-if="store.state.currentAgent" class="chat-header">
+      <AgentAvatar :agent="store.state.currentAgent" :size="34" />
+      <div class="header-text">
+        <b>{{ store.state.currentAgent.nickname }}</b>
+        <small>
+          <span v-if="topicTitle" class="header-topic">{{ topicTitle }}</span>
+          <span v-if="headerModel">{{ headerModel }}</span>
+          <span v-if="store.tokenCount.value > 0">{{ store.tokenCount.value.toLocaleString() }} tokens</span>
+        </small>
+      </div>
+      <div class="header-actions">
+        <button type="button" title="新话题" aria-label="新话题" @click="store.newConversation">
+          <i class="iconfont icon-clear" aria-hidden="true"></i>
+        </button>
+        <button type="button" title="话题记录" aria-label="话题记录" @click="store.state.historyOpen = true">
+          <i class="iconfont icon-huati" aria-hidden="true"></i>
+        </button>
+        <ChatExportMenu />
+      </div>
+    </header>
     <!-- 包一层定位容器：输入区带图时会变高，按钮按「消息区底部」定位才不会被压住 -->
     <div class="messages-area">
       <button v-if="!stick" class="back-to-bottom" type="button" title="回到底部" @click="scrollToBottom">
@@ -130,6 +153,18 @@ watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], a
 
 <style scoped>
 .chat-view { position: relative; min-width: 0; height: 100vh; display: flex; flex: 1; flex-direction: column; background: var(--chat-bg); }
+.chat-header { height: 56px; padding: 0 12px 0 16px; display: flex; flex: 0 0 56px; align-items: center; gap: 10px; border-bottom: 1px solid var(--color-border-2); background: var(--color-bg-2); }
+.header-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.header-text b { color: var(--color-text-1); font-size: 14px; font-weight: 600; line-height: 1.2; }
+.header-text small { display: flex; align-items: center; gap: 6px; overflow: hidden; color: var(--color-text-3); font-size: 12px; line-height: 1.2; white-space: nowrap; }
+/* 话题名可能很长，让它独占伸缩空间并省略，模型名和 token 数始终可见 */
+.header-text small > span { flex: 0 0 auto; }
+.header-text small > .header-topic { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.header-text small > span + span::before { content: "·"; margin-right: 6px; color: var(--color-text-4, var(--color-text-3)); }
+.header-actions { position: relative; margin-left: auto; display: flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+.header-actions > button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--color-icon); }
+.header-actions > button:hover { color: var(--color-primary); background: var(--color-fill-1); }
+.header-actions .iconfont { font-size: 17px; line-height: 1; }
 .messages-area { position: relative; min-height: 0; display: flex; flex: 1; }
 .messages { flex: 1; overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth; will-change: transform; }
 .back-to-bottom { position: absolute; z-index: 20; bottom: 12px; left: 50%; width: 32px; height: 32px; display: grid; place-items: center; transform: translateX(-50%); border: 1px solid var(--color-border-2); border-radius: 50%; color: var(--color-text-2); background: var(--color-bg-2); box-shadow: 0 2px 8px #00000024; }

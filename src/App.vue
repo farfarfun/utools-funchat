@@ -32,8 +32,15 @@ function handleShortcut(event) {
   }
 }
 
+// 流式回复期间会话还没落盘（persistCurrentConversation 要等流结束才调用），
+// 此时关掉窗口整轮问答都会丢，所以卸载前补存一次。pagehide 在 Electron 关窗时会触发。
+function persistBeforeUnload() {
+  store.persistCurrentConversation();
+}
+
 onMounted(async () => {
   document.addEventListener('keydown', handleShortcut);
+  window.addEventListener('pagehide', persistBeforeUnload);
   try {
     await store.init();
   } catch (error) {
@@ -41,7 +48,10 @@ onMounted(async () => {
     store.state.ready = true;
   }
 });
-onBeforeUnmount(() => document.removeEventListener('keydown', handleShortcut));
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleShortcut);
+  window.removeEventListener('pagehide', persistBeforeUnload);
+});
 </script>
 
 <template>

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { host } from '../../services/utools.js';
 import { useChatStore } from '../../stores/chat.js';
 import { renderMarkdown } from './markdown.js';
-import { downloadInBrowser, saveElementImage, saveToDisk } from './message-tools.js';
+import { downloadInBrowser, saveElementImage, saveToDisk, withAllExpanded } from './message-tools.js';
 import { messageText } from './token-count.js';
 
 const store = useChatStore();
@@ -91,7 +91,7 @@ async function select(value: string) {
   if (value === 'copy') await host.copyText(markdown.value.replace(/\*\*(.*?)：\*\*/gu, '$1：'));
   // 消息区还没挂载时 querySelector 会是 null，直接跳过而不是把 null 丢给 html2canvas
   const messages = value === 'image' ? document.querySelector<HTMLElement>('.messages-content') : null;
-  if (messages) await saveElementImage(messages, store.state.currentAgent?.nickname || 'chat');
+  if (messages) await withAllExpanded(() => saveElementImage(messages, store.state.currentAgent?.nickname || 'chat'));
   if (value === 'markdown') await save(markdown.value, 'md', 'text/markdown;charset=utf-8');
   if (value === 'html') await save(htmlDocument(), 'html', 'text/html;charset=utf-8');
   if (value === 'docx') await save(htmlDocument(), 'docx', 'application/msword');
@@ -102,11 +102,20 @@ function closeFromOutside(event: Event) {
   if (!root.value?.contains(event.target as Node)) closeMenu();
 }
 
-onMounted(() => document.addEventListener('pointerdown', closeFromOutside));
+// 这些浮层不是原生 dialog，Esc 不会自动关，得自己接
+function closeOnEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape') closeMenu();
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', closeFromOutside);
+  document.addEventListener('keydown', closeOnEscape);
+});
 onBeforeUnmount(() => {
   clearTimeout(hoverTimer);
   clearTimeout(closeTimer);
   document.removeEventListener('pointerdown', closeFromOutside);
+  document.removeEventListener('keydown', closeOnEscape);
 });
 </script>
 
@@ -159,10 +168,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.export-anchor { position: absolute; z-index: 10; top: 19px; right: 12px; width: 20px; height: 20px; }
+.export-anchor { position: relative; z-index: 10; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; }
+.export-anchor:hover { background: var(--color-fill-1); }
 .chat-more { width: 20px; height: 20px; color: var(--color-text-3); }
 .chat-more:hover { color: var(--color-primary); }
-.export-dropdown { position: absolute; top: 24px; right: 0; width: 163px; max-height: 260px; padding: 6px; overflow: hidden; border: 1px solid var(--color-border-2); border-radius: 4px; background: var(--color-bg-2); box-shadow: 0 4px 10px #0000001a; }
+.export-dropdown { position: absolute; top: 30px; right: 0; width: 163px; max-height: 260px; padding: 6px; overflow: hidden; border: 1px solid var(--color-border-2); border-radius: 4px; background: var(--color-bg-2); box-shadow: 0 4px 10px #0000001a; }
 .export-dropdown button { width: 100%; height: 36px; padding: 0 12px; display: flex; align-items: center; gap: 8px; color: var(--color-text-2); text-align: left; white-space: nowrap; }
 .export-dropdown button:hover, .export-dropdown button:focus-visible { color: var(--color-text-1); background: var(--color-fill-2); }
 .export-icon { width: 16px; height: 16px; flex: 0 0 16px; }

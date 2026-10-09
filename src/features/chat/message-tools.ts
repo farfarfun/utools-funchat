@@ -1,6 +1,26 @@
+import { nextTick, ref } from 'vue';
 import { host } from '../../services/utools.ts';
 
 export const COLLAPSE_THRESHOLD = 900;
+
+// 折叠状态分散在每个 MessageItem 自己身上，整段对话出图时得有个总开关统一压制，
+// 否则图里是被 max-height 截断、还烤进了渐变遮罩的半截气泡。
+export const expandAllForExport = ref(false);
+
+/**
+ * 在「所有长消息都展开」的状态下执行出图动作，结束后恢复折叠。
+ * @param action 真正的出图动作。
+ * @returns action 的返回值；无论成败都会恢复折叠状态。
+ */
+export async function withAllExpanded<T>(action: () => Promise<T>): Promise<T> {
+  expandAllForExport.value = true;
+  await nextTick();
+  try {
+    return await action();
+  } finally {
+    expandAllForExport.value = false;
+  }
+}
 
 export function isLongMessage(value: unknown): boolean {
   return String(value || '').length > COLLAPSE_THRESHOLD;

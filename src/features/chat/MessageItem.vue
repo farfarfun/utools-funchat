@@ -5,7 +5,7 @@ import AgentAvatar from '../agents/AgentAvatar.vue';
 import { previewImage } from './image-preview.js';
 import { renderMarkdown } from './markdown.js';
 import { droppedImageCount, imageUrls } from './message-content.js';
-import { copyElementImage, isLongMessage, saveElementImage } from './message-tools.js';
+import { copyElementImage, expandAllForExport, isLongMessage, saveElementImage } from './message-tools.js';
 import { messageText } from './token-count.js';
 
 const props = defineProps({
@@ -83,7 +83,7 @@ async function copyImage() {
           </button>
           <span v-if="dropped" class="message-image-dropped">{{ dropped }} 张图片因体积超限未保存</span>
         </div>
-        <div class="prose-chat" :class="{ collapsed }" v-html="html" @click="openLink"></div>
+        <div class="prose-chat" :class="{ collapsed: collapsed && !expandAllForExport }" v-html="html" @click="openLink"></div>
       </div>
       <div v-if="index >= 0" class="message-actions">
         <button type="button" :title="copied ? '已复制' : '复制'" :aria-label="copied ? '已复制' : '复制'" @click="copy">

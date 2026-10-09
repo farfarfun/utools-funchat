@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { closePreview, previewUrl } from './image-preview.js';
 
 const dialog = ref();
@@ -9,6 +9,10 @@ watch(previewUrl, (url) => {
   if (url && !dialog.value?.open) dialog.value?.showModal();
   else if (!url && dialog.value?.open) dialog.value?.close();
 });
+
+// 预览地址存在模块级，灯箱随 ChatView 卸载（切到设置页等）时必须一起清掉：
+// 否则不仅留着一张 base64 大图，再点同一张图也打不开了——值没变，watch 不会触发。
+onBeforeUnmount(closePreview);
 </script>
 
 <template>

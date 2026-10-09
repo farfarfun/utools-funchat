@@ -80,6 +80,10 @@ export type ApiRoute = Record<string, any> & {
   baseUrl: string;
   apiKey: string;
   streamMode: string;
+  /** 从 /v1/models 拉回来的可用模型清单，随线路一起保存。 */
+  models?: string[];
+  /** 上次拉取模型的时间戳，用于在界面上提示清单的新鲜度。 */
+  modelsFetchedAt?: number;
   /** 仅迁移期间使用：标记旧数据里处于启用状态的那条线路。 */
   wasActive?: boolean;
 };

@@ -39,6 +39,8 @@ export type UtoolsHost = Record<string, any> & {
     removeItem(key: string): void;
   };
   ai?: ((params: Record<string, unknown>, onChunk: (chunk?: AiChunk) => void) => AiRequest) | null;
+  /** uTools AI 的可用模型清单，老版本客户端上可能不存在。 */
+  allAiModels?: () => Promise<unknown>;
   copyText(text: string): unknown;
   copyImage(dataUrl: string): unknown;
   shellOpenExternal(url: string): unknown;
