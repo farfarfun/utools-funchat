@@ -153,6 +153,8 @@ async function copyImage() {
 :deep(.prose-chat a) { color: var(--color-primary); text-decoration: underline; }
 :deep(.prose-chat pre) { padding: 12px 14px; overflow-x: auto; border-radius: 5px; color: #e8eaed; background: #282c34; line-height: 1.55; }
 :deep(.prose-chat code:not(pre code)) { padding: 2px 5px; border-radius: 3px; color: #d84d73; background: var(--color-fill-2); }
+/* KaTeX 还在下载时公式先以原文占位，别让它闪成行内代码那种高亮粉 */
+:deep(.prose-chat code.math-pending) { padding: 0; color: inherit; background: transparent; opacity: .7; }
 :deep(.prose-chat blockquote) { padding-left: 12px; border-left: 3px solid var(--color-primary); color: var(--color-text-3); }
 :deep(.prose-chat table) { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 :deep(.prose-chat th), :deep(.prose-chat td) { padding: 6px 10px; border: 1px solid var(--color-border-2); }

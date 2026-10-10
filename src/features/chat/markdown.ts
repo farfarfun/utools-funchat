@@ -1,7 +1,29 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import katex from 'katex';
+import { ref } from 'vue';
 import { findBlockStart, findInlineStart, matchBlockMath, matchInlineMath } from './math-delimiters.ts';
+
+type Katex = typeof import('katex')['default'];
+
+// KaTeX（含 CSS）压缩前约 290 kB，占了主包的一半，但只有带公式的消息用得上。
+// 改成首次遇到公式时才下载：renderMarkdown 是同步的且被用在 computed 里，所以这里
+// 先出一个占位，加载完成后 bump 这个 ref 让依赖它的 computed 重新渲染一次。
+let katex: Katex | null = null;
+let loading: Promise<void> | null = null;
+const katexRevision = ref(0);
+
+function loadKatex(): void {
+  if (katex || loading) return;
+  loading = Promise.all([import('katex'), import('katex/dist/katex.min.css')])
+    .then(([module]) => {
+      katex = module.default;
+      katexRevision.value += 1;
+    })
+    .catch(() => {
+      // 下载失败就一直走占位分支，下次渲染还会再试一次
+      loading = null;
+    });
+}
 
 DOMPurify.addHook('afterSanitizeAttributes', (node: Element) => {
   if (node.tagName !== 'A') return;
@@ -19,6 +41,11 @@ function escapeHtml(value: unknown): string {
 }
 
 function renderMath(expression: string, displayMode: boolean): string {
+  if (!katex) {
+    loadKatex();
+    // 占位同样保留原文，加载完成前后内容一致，只是没有排版
+    return `<code class="math-pending">${escapeHtml(expression.trim())}</code>`;
+  }
   try {
     return katex.renderToString(expression.trim(), {
       displayMode,
@@ -72,5 +99,7 @@ const SANITIZE_OPTIONS = { ADD_ATTR: ['class', 'style'] };
  * @returns 经过消毒、可安全插入界面的 HTML 字符串。
  */
 export function renderMarkdown(value: unknown): string {
+  // 读一下版本号，使 KaTeX 到位后调用方的 computed 会自动再渲染一次
+  void katexRevision.value;
   return DOMPurify.sanitize(marked.parse(String(value ?? ''), { breaks: true, async: false }), SANITIZE_OPTIONS);
 }
