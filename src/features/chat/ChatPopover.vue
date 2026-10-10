@@ -112,14 +112,16 @@ function useRoute(routeId: string) {
 
 /* ---------- 临时调参 ---------- */
 
+// 好友自己的设置打底，本话题已经临时改过的则显示改后的值
+const overrides = store.paramOverrides;
 const params = reactive({
-  model: store.state.currentAgent?.params?.model || '',
-  contextLength: Number(store.state.currentAgent?.contextLength) || 16,
-  max_tokens: paramValue(store.state.currentAgent?.params?.max_tokens, 900),
-  temperature: paramValue(store.state.currentAgent?.params?.temperature, 0.6),
-  top_p: paramValue(store.state.currentAgent?.params?.top_p, 1),
-  frequency_penalty: paramValue(store.state.currentAgent?.params?.frequency_penalty, 0),
-  presence_penalty: paramValue(store.state.currentAgent?.params?.presence_penalty, 0),
+  model: overrides.model ?? store.state.currentAgent?.params?.model ?? '',
+  contextLength: Number(overrides.contextLength ?? store.state.currentAgent?.contextLength) || 16,
+  max_tokens: paramValue(overrides.max_tokens ?? store.state.currentAgent?.params?.max_tokens, 900),
+  temperature: paramValue(overrides.temperature ?? store.state.currentAgent?.params?.temperature, 0.6),
+  top_p: paramValue(overrides.top_p ?? store.state.currentAgent?.params?.top_p, 1),
+  frequency_penalty: paramValue(overrides.frequency_penalty ?? store.state.currentAgent?.params?.frequency_penalty, 0),
+  presence_penalty: paramValue(overrides.presence_penalty ?? store.state.currentAgent?.params?.presence_penalty, 0),
 });
 
 const modelOptions = computed(() => store.routeModels.value);
@@ -146,20 +148,18 @@ const parameterRows: ParamRow[] = [
   { key: 'presence_penalty', label: '存在惩罚', min: -2, max: 2, step: 0.1 },
 ];
 
+// 只写进 store 的临时覆盖层，好友文档一个字节都不动，换话题即失效
 function saveParams() {
-  const agent = store.state.currentAgent;
-  if (!agent) return;
-  agent.contextLength = params.contextLength;
-  // params 可能还不存在，直接 Object.assign 会把 undefined 当目标
-  agent.params = {
-    ...agent.params,
+  if (!store.state.currentAgent) return;
+  store.setParamOverrides({
     model: params.model.trim(),
+    contextLength: params.contextLength,
     max_tokens: params.max_tokens,
     temperature: params.temperature,
     top_p: params.top_p,
     frequency_penalty: params.frequency_penalty,
     presence_penalty: params.presence_penalty,
-  };
+  });
 }
 
 function rangeStyle(row: ParamRow) {

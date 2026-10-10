@@ -41,21 +41,21 @@ test('loadAgents returns every stored agent regardless of pin state', async () =
   assert.deepEqual(new Set((await loadAgents()).map((agent) => agent._id)), new Set(['ai@a', 'ai@b', 'ai@c']));
 });
 
-test('round-trips history messages and sorts the newest topic first', () => {
+test('round-trips history messages and sorts the newest topic first', async () => {
   resetDatabase();
   saveHistory({ id: 'chat@ai@1#1000', title: '旧话题', messages: [{ role: 'user', content: '你好' }] });
   saveHistory({ id: 'chat@ai@1#2000', title: '新话题', messages: [{ role: 'user', content: '再见' }] });
-  const histories = loadHistories();
+  const histories = await loadHistories();
   assert.deepEqual(histories.map((history) => history.title), ['新话题', '旧话题']);
   assert.deepEqual(histories[1].messages, [{ role: 'user', content: '你好' }]);
   assert.equal(histories[0].agentId, 'ai@1');
   assert.equal(histories[0].sortKey, 2000);
 });
 
-test('recovers the agent id from a history id that has no # separator', () => {
+test('recovers the agent id from a history id that has no # separator', async () => {
   resetDatabase();
   saveHistory({ id: 'chat@ai@legacy', title: '旧记录', messages: [] });
-  const [history] = loadHistories();
+  const [history] = await loadHistories();
   assert.equal(history.agentId, 'ai@legacy');
   assert.equal(history.sortKey, 0);
 });
@@ -71,14 +71,14 @@ test('preserves the original creation date when a topic is re-saved', () => {
   assert.notEqual(stored.updatedDate, undefined);
 });
 
-test('deleting an agent also deletes its topics', () => {
+test('deleting an agent also deletes its topics', async () => {
   resetDatabase();
   saveAgent(makeAgent('ai@1'));
   saveHistory({ id: 'chat@ai@1#1000', title: '话题', messages: [] });
   saveHistory({ id: 'chat@ai@2#1000', title: '别人的话题', messages: [] });
   removeAgent('ai@1');
   assert.equal(host.db.get('ai@1'), null);
-  assert.deepEqual(loadHistories().map((history) => history._id), ['chat@ai@2#1000']);
+  assert.deepEqual((await loadHistories()).map((history) => history._id), ['chat@ai@2#1000']);
 });
 
 /* ---------- 带图会话的体积兜底 ---------- */
@@ -164,7 +164,7 @@ test('moves 0.1.x documents out of the single dbStorage blob into the document d
   assert.equal(agents[0].params.messages[0].content, '角色指令');
   // 旧库的 _rev 不能照搬进新库，否则后续写入永远冲突
   assert.equal(agents[0]._rev, '1-browser');
-  assert.deepEqual(loadHistories().map((history) => history.title), ['旧话题']);
+  assert.deepEqual((await loadHistories()).map((history) => history.title), ['旧话题']);
 });
 
 test('migration leaves the legacy blob untouched as a backup', async () => {

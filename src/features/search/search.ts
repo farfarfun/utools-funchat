@@ -12,6 +12,29 @@ function normalize(value: unknown): string {
   return String(value || '').toLocaleLowerCase('zh-CN');
 }
 
+// 侧边栏的全局搜索每敲一个键都要重新过一遍全部历史，而拼小写长串的代价和消息总字数成正比：
+// 300 条会话就是每次按键几 MB 的字符串操作。按记录对象缓存，落盘时 upsertHistory 会换上新的
+// 记录对象，WeakMap 条目自然失效；title / messages 的恒等比较再兜住原地改写的情况。
+const haystackCache = new WeakMap<object, { title: unknown; messages: unknown; text: string }>();
+
+function haystackOf(record: HistoryRecord): string {
+  const cached = haystackCache.get(record);
+  if (cached && cached.title === record.title && cached.messages === record.messages) return cached.text;
+  const text = normalize(`${record.title || ''} ${record.messages.map(messageText).join(' ')}`);
+  haystackCache.set(record, { title: record.title, messages: record.messages, text });
+  return text;
+}
+
+function parseTerms(query: unknown): string[] {
+  return normalize(query).trim().split(/\s+/u).filter(Boolean);
+}
+
+function matchesTerms(record: HistoryRecord, terms: readonly string[]): boolean {
+  if (!terms.length) return true;
+  const haystack = haystackOf(record);
+  return terms.every((term) => haystack.includes(term));
+}
+
 /**
  * 判断一条历史记录的标题或消息正文是否包含全部搜索词。
  * @param record 待匹配的历史记录。
@@ -19,10 +42,18 @@ function normalize(value: unknown): string {
  * @returns 全部搜索词均命中时返回 `true`。
  */
 export function matchesHistoryQuery(record: HistoryRecord, query: unknown): boolean {
-  const terms = normalize(query).trim().split(/\s+/u).filter(Boolean);
-  if (!terms.length) return true;
-  const haystack = normalize(`${record.title || ''} ${record.messages.map(messageText).join(' ')}`);
-  return terms.every((term) => haystack.includes(term));
+  return matchesTerms(record, parseTerms(query));
+}
+
+/**
+ * 预解析搜索词，返回可重复套用的匹配函数。
+ * 调用方自己做筛选（例如还要按收藏分页）时用它，避免每条记录都重新解析一遍搜索词。
+ * @param query 以空白分隔的搜索词；空查询得到的函数匹配所有记录。
+ * @returns 判定单条记录是否命中的函数。
+ */
+export function historyMatcher(query: unknown): (record: HistoryRecord) => boolean {
+  const terms = parseTerms(query);
+  return (record) => matchesTerms(record, terms);
 }
 
 /**
@@ -33,9 +64,11 @@ export function matchesHistoryQuery(record: HistoryRecord, query: unknown): bool
  * @returns 匹配且按 `sortKey` 降序排列的记录。
  */
 export function filterHistoryRecords<T extends HistoryRecord>(records: readonly T[], query: unknown, limit = 30): T[] {
-  if (!normalize(query).trim()) return [];
+  // 搜索词只解析一次，而不是每条记录都重新归一化、切分一遍
+  const terms = parseTerms(query);
+  if (!terms.length) return [];
   return records
-    .filter((record) => matchesHistoryQuery(record, query))
+    .filter((record) => matchesTerms(record, terms))
     .sort((left, right) => right.sortKey - left.sortKey)
     .slice(0, limit);
 }

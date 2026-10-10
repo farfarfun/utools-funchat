@@ -90,7 +90,6 @@ defineExpose({ open });
       </nav>
 
       <section v-if="tab === 'basic'" class="dialog-pane basic-pane" :class="{ 'function-pane': form.type === 'function' }">
-        <label class="form-row"><span>分组选择</span><span class="control select-control"><select v-model="form.group"><option value="">请选择分组，留空将使用默认分组...</option><option value="default">默认</option></select><i class="iconfont icon-down" aria-hidden="true"></i></span></label>
         <label class="form-row model-row">
           <span>模型选择</span>
           <span class="control model-field">
@@ -111,12 +110,7 @@ defineExpose({ open });
         </template>
         <template v-else>
           <label class="form-row function-row"><span>函数对象</span><span class="control"><textarea v-model="form.functions" rows="2" placeholder="传入函数Json对象。留空将跳过函数调用，直接将输入当作参数。"></textarea></span></label>
-          <label class="form-row function-row"><span>函数回调</span><span class="control"><textarea v-model="form.callback" rows="2" placeholder="函数回调，请输入函数体。用法请阅开发手册"></textarea></span></label>
-          <div class="form-row function-summary"><span>函数总结</span><div class="summary-control"><span class="switch"><input v-model="form.isAiSummary" type="checkbox" role="switch"><i></i></span><small>是否将函数结果经过Ai总结优化？(长内容建议关闭)</small></div></div>
         </template>
-        <div class="form-row outside-row"><span>外部提问</span><div class="split-row"><label class="switch-label"><span class="switch"><input v-model="form.isFly" type="checkbox" role="switch"><i></i></span>快捷提问 <small>?</small></label><label class="switch-label"><span>全局提问</span><span class="switch"><input v-model="form.isOverall" type="checkbox" role="switch"><i></i></span><small>?</small></label></div></div>
-        <div class="form-row outside-mode"><span>外部模式</span><div class="radios"><label><input v-model="form.isFlyNewChat" type="radio" :value="true">新话题提问</label><label><input v-model="form.isFlyNewChat" type="radio" :value="false">追加提问</label></div></div>
-        <div class="form-row share-row"><span>分享状态</span><div class="radios status-radios"><label><input v-model="form.status" type="radio" :value="1">审核通过</label><label><input v-model="form.status" type="radio" :value="2">待审核</label><label><input v-model="form.status" type="radio" :value="3">审核失败</label><label><input v-model="form.status" type="radio" :value="0">下架</label></div></div>
       </section>
 
       <section v-else-if="tab === 'params'" class="dialog-pane params-pane">
@@ -126,8 +120,6 @@ defineExpose({ open });
 
       <section v-else class="dialog-pane advanced-pane">
         <label class="form-row question-row"><span>提问示例</span><span class="control tag-input"><span v-for="(item, index) in form.quick_questions" :key="`${item}-${index}`" class="question-tag">{{ item }}<button type="button" aria-label="删除提问示例" @click="form.quick_questions.splice(index, 1)">×</button></span><input v-model="question" placeholder="请输入问题示例，按回车添加" @keydown.enter.prevent="addQuestion"></span></label>
-        <div class="form-row follow-row"><span>关联提问</span><div class="advanced-control"><div><span class="switch"><input v-model="form.isFollowQuestion" type="checkbox" role="switch"><i></i></span><button type="button">什么是关联提问？</button></div><small>关联提问默认使用便宜的gpt-4.1-mini模型。</small></div></div>
-        <label class="form-row api-row"><span>API绑定</span><span class="control select-control"><select v-model="form.api_id"><option value="">可选择绑定某条API</option></select><i class="iconfont icon-down" aria-hidden="true"></i><small>（最高优先级）指定Ai使用某条API路线，清空将使用您当前默认路线。</small></span></label>
         <div class="form-row stream-row"><span>非流输出</span><div class="advanced-control"><div><span class="switch"><input v-model="form.un_stream" type="checkbox" role="switch"><i></i></span><small>启用后该Ai将会一次性输出结果。(等待时间较长-不建议)</small></div><small>某些对话模型如果不支持流式输出，可开启该功能。</small></div></div>
       </section>
 
@@ -162,9 +154,7 @@ defineExpose({ open });
 .control > textarea { height: 54px; min-height: 54px; padding: 4px 12px; border-radius: 12px; resize: none; line-height: 22px; }
 .form-row > input:focus, .control > input:focus, .control > textarea:focus, .control > select:focus { border-color: var(--color-primary); background: var(--color-bg-2); }
 .control small { display: block; color: var(--color-text-3); font-size: 12px; line-height: 19px; }
-.control small b, .radios b, .advanced-control button { color: var(--color-primary); font-weight: 400; }
-.select-control select { padding-right: 34px; appearance: none; }
-.select-control > i, .input-control > i { position: absolute; top: 6px; right: 13px; color: var(--color-icon); font-size: 12px; pointer-events: none; }
+.control small b, .radios b { color: var(--color-primary); font-weight: 400; }
 .model-row { margin-bottom: 20px; }
 .model-row .control { min-height: 55px; }
 .model-field { display: flex; flex-direction: column; gap: 6px; }
@@ -182,25 +172,15 @@ defineExpose({ open });
 .prefix-row { margin-bottom: 20px; }
 .prefix-row .control small { line-height: 23px; }
 .function-row { height: 54px; margin-bottom: 20px; }
-.function-summary { margin-bottom: 8px; align-items: center; }
-.function-summary > span:first-child { padding-top: 0; }
-.summary-control { display: flex; flex: 1; align-items: center; gap: 8px; }
-.summary-control small { color: var(--color-text-3); font-size: 12px; }
-.outside-row, .outside-mode, .share-row { margin-bottom: 8px; align-items: center; }
-.outside-row > span:first-child, .outside-mode > span:first-child, .share-row > span:first-child { padding-top: 0; }
-.split-row { display: flex; flex: 1; align-items: center; justify-content: space-between; }
-.switch-label { display: flex; align-items: center; gap: 8px; }
-.switch-label > span:first-child:not(.switch) { margin-left: auto; }
-.switch-label small { width: 12px; height: 12px; display: grid; place-items: center; border: 1px solid var(--color-border-2); border-radius: 50%; color: var(--color-text-3); font-size: 9px; }
 .switch { position: relative; width: 28px; height: 16px; display: inline-block; flex: 0 0 28px; vertical-align: middle; }
 .switch input { position: absolute; opacity: 0; }
 .switch i { position: absolute; inset: 0; border-radius: 8px; background: #c9cdd4; }
 .switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform .2s ease; }
 .switch input:checked + i { background: var(--color-primary); }
 .switch input:checked + i::after { transform: translateX(12px); }
-.status-radios { gap: 20px; }
-.basic-pane { min-height: 656px; transform: translateY(-.765625px); }
-.basic-pane.function-pane { min-height: 670px; }
+/* 各分页的高度基准按行数配平，切换分页时弹窗不会跳动。删减表单行时记得一起下调。 */
+.basic-pane { min-height: 484px; transform: translateY(-.765625px); }
+.basic-pane.function-pane { min-height: 384px; }
 .params-pane { min-height: 302px; padding: 16px 12px 0; }
 .parameter-row { height: 44px; display: flex; align-items: center; }
 .parameter-row > span { width: 90px; flex: 0 0 90px; color: var(--color-text-1); }
@@ -211,7 +191,7 @@ defineExpose({ open });
 .parameter-number { width: 80px; height: 32px; padding: 0 12px; border: 0; border-radius: 3px; outline: 0; background: var(--color-fill-2); text-align: center; }
 .parameter-number::-webkit-inner-spin-button, .parameter-number::-webkit-outer-spin-button { appearance: none; }
 .params-pane p { margin-left: 90px; color: var(--color-text-3); font-size: 12px; }
-.advanced-pane { min-height: 252px; padding: 16px 12px 0; }
+.advanced-pane { min-height: 135px; padding: 16px 12px 0; }
 .advanced-pane .form-row { margin-bottom: 12px; }
 .advanced-pane .form-row > span:first-child { width: 90px; flex-basis: 90px; }
 .tag-input { min-height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 4px; overflow: hidden; border-radius: 12px; background: var(--color-fill-2); }
@@ -222,8 +202,6 @@ defineExpose({ open });
 .advanced-control > div { height: 24px; display: flex; align-items: center; gap: 10px; }
 .advanced-control > small { display: block; color: var(--color-text-3); font-size: 12px; line-height: 19px; }
 .advanced-control div > small { color: var(--color-text-3); font-size: 12px; }
-.api-row { margin-bottom: 10px !important; }
-.api-row .control { min-height: 52px; }
 .stream-row { margin-bottom: 0 !important; }
 .agent-dialog footer { height: 32px; margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 12px; }
 .agent-dialog footer button { height: 32px; padding: 0 15px; border: 1px solid transparent; border-radius: 12px; background: var(--color-fill-2); }

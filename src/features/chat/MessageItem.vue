@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, type PropType } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch, type PropType } from 'vue';
 import type { Agent } from '../../types.ts';
 import { host } from '../../services/utools.js';
 import AgentAvatar from '../agents/AgentAvatar.vue';
@@ -22,9 +22,36 @@ const body = ref();
 const copied = ref(false);
 const imageCopied = ref(false);
 const exporting = ref(false);
-const long = computed(() => isLongMessage(messageText(props.message)));
+// 流式回复期间 content 每来一个 chunk 就变一次，而一次 renderMarkdown 要把整条消息重新过
+// 一遍 marked + DOMPurify，v-html 随后还会把整块 DOM 拆掉重建。这里节流到约 12 次/秒：
+// 视觉上比逐 token 刷新更稳，开销却低一个数量级。首次变化立即生效，所以非流式场景不会变慢。
+const RENDER_INTERVAL = 80;
+const source = ref(messageText(props.message));
+let lastRender = 0;
+let pending: ReturnType<typeof setTimeout> | null = null;
+
+watch(() => messageText(props.message), (value) => {
+  const wait = RENDER_INTERVAL - (Date.now() - lastRender);
+  if (wait > 0) {
+    // 已经排过一次尾随渲染就不必再排，回调读的是届时最新的内容，最后一个 chunk 不会漏
+    pending ||= setTimeout(() => {
+      pending = null;
+      lastRender = Date.now();
+      source.value = messageText(props.message);
+    }, wait);
+    return;
+  }
+  if (pending) clearTimeout(pending);
+  pending = null;
+  lastRender = Date.now();
+  source.value = value;
+});
+
+onBeforeUnmount(() => { if (pending) clearTimeout(pending); });
+
+const long = computed(() => isLongMessage(source.value));
 const collapsed = ref(long.value);
-const html = computed(() => renderMarkdown(messageText(props.message)));
+const html = computed(() => renderMarkdown(source.value));
 const images = computed(() => imageUrls(props.message));
 const dropped = computed(() => droppedImageCount(props.message));
 

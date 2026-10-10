@@ -15,14 +15,16 @@ const MIGRATED_KEY = 'funchat.documents.migrated';
 export type { StorageDocument } from './utools.ts';
 export type { ApiRoute, Settings, HistoryInput } from '../types.ts';
 
+// 调用方必须传已经脱过响应式的纯数据：Proxy 过不了 Electron 的结构化克隆，db.put 会失败。
+// 这里不再兜一层 clonePlain——两个调用方本来就各自克隆过一遍，再克隆就是白拷一次带图会话。
 function putDocument(document: StorageDocument): DbResult {
-  const result = host.db.put(clonePlain(document));
+  const result = host.db.put(document);
   if (!result?.error) return result;
   // _rev 过期说明同一条文档在别处被写过（例如先 saveHistory 再 saveAgent 走了同一个对象）。
   // 取回当前 _rev 重试一次，让本次改动生效，而不是把失败咽下去。
   const current = host.db.get(document._id);
   if (!current) return result;
-  return host.db.put({ ...clonePlain(document), _rev: current._rev });
+  return host.db.put({ ...document, _rev: current._rev });
 }
 
 function removeDocument(id: string): void {
@@ -109,10 +111,13 @@ function toHistory(document: StorageDocument): History {
 
 /**
  * 按最近会话优先的顺序读取全部历史记录。
+ * 走异步接口：同步版 allDocs 是阻塞式 IPC，几十个带图会话就是几 MB 数据一次性搬进渲染进程，
+ * 整个界面会卡在这里连加载动画都停住。
  * @returns 带好友标识和排序键的历史记录副本。
  */
-export function loadHistories(): History[] {
-  return allDocuments('chat@')
+export async function loadHistories(): Promise<History[]> {
+  const documents = await host.db.promises.allDocs('chat@');
+  return documents
     .flatMap((document) => (Array.isArray(document.messages) ? [toHistory(document)] : []))
     .sort((left, right) => right.sortKey - left.sortKey);
 }
@@ -126,13 +131,16 @@ export function loadHistories(): History[] {
  */
 export function stripImagesToFit(messages: ChatMessage[], budget = HISTORY_SIZE_BUDGET): ChatMessage[] {
   const next = clonePlain(messages) as ChatMessage[];
-  const oversize = () => JSON.stringify(next).length > budget;
-  if (!oversize()) return next;
+  let size = JSON.stringify(next).length;
+  if (size <= budget) return next;
   for (const message of next) {
     for (const part of Array.isArray(message.content) ? message.content : []) {
       if (part?.type !== 'image_url' || !part.image_url?.url) continue;
+      // 抹掉一个 url 省下的字符数就是它 JSON 编码后的长度减去剩下的那对引号，可以精确算出来。
+      // 每抹一张就把整段重新序列化一遍是平方级的，带十几张图的会话会明显卡一下。
+      size -= JSON.stringify(part.image_url.url).length - 2;
       part.image_url.url = '';
-      if (!oversize()) return next;
+      if (size <= budget) return next;
     }
   }
   return next;

@@ -573,7 +573,7 @@
         "nickname": "虚拟医生",
         "info": "结果仅供参考",
         "avatar": {
-            "type": "icon",
+            "type": "text",
             "image": "8",
             "text": "医生",
             "color": "rgba(31, 216, 139, 1)"

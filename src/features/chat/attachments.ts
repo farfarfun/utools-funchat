@@ -132,13 +132,17 @@ function encode(image: HTMLImageElement, width: number, height: number, fallback
   if (!context) return fallback;
 
   let best = fallback;
+  // 缩放既变不出透明通道也抹不掉透明通道，所以三档编码的答案必然相同，只用判一次。
+  // getImageData 加逐像素扫描在 1280px 的图上就是几百万次循环，每档各跑一遍纯属白费。
+  let transparent: boolean | null = null;
   for (const step of ENCODE_STEPS) {
     const size = fitSize(width, height, step.edge);
     canvas.width = size.width;
     canvas.height = size.height;
     context.clearRect(0, 0, size.width, size.height);
     context.drawImage(image, 0, 0, size.width, size.height);
-    const type = hasTransparency(context, size.width, size.height) ? 'image/png' : 'image/jpeg';
+    transparent ??= hasTransparency(context, size.width, size.height);
+    const type = transparent ? 'image/png' : 'image/jpeg';
     const encoded = canvas.toDataURL(type, step.quality);
     if (!best || dataUrlBytes(encoded) < dataUrlBytes(best)) best = encoded;
     if (best && dataUrlBytes(best) <= MAX_IMAGE_BYTES) break;

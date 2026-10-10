@@ -44,7 +44,7 @@ test('persists every message instead of only the context window', async () => {
 
   for (const question of ['问题1', '问题2', '问题3', '问题4']) await store.send(question);
 
-  const [history] = loadHistories();
+  const [history] = await loadHistories();
   assert.equal(history.messages[0].role, 'system');
   assert.deepEqual(
     history.messages.filter((message) => message.role === 'user').map((message) => message.content),
@@ -159,16 +159,16 @@ test('the in-memory history list stays identical to a fresh read from the db', a
   await store.send('第二个话题');
   store.selectAgent(store.state.agents.find((agent) => agent._id === 'ai@1'));
   await store.send('另一个好友的话题');
-  assert.deepEqual(store.state.histories, loadHistories(), '连续发送后应一致');
+  assert.deepEqual(store.state.histories, await loadHistories(), '连续发送后应一致');
 
   store.toggleFavorite(store.state.histories[0]);
-  assert.deepEqual(store.state.histories, loadHistories(), '收藏后应一致');
+  assert.deepEqual(store.state.histories, await loadHistories(), '收藏后应一致');
 
   store.deleteHistory(store.state.histories[1]);
-  assert.deepEqual(store.state.histories, loadHistories(), '删除话题后应一致');
+  assert.deepEqual(store.state.histories, await loadHistories(), '删除话题后应一致');
 
   store.deleteAgent(store.state.agents.find((agent) => agent._id === 'ai@2'));
-  assert.deepEqual(store.state.histories, loadHistories(), '删除好友应连带清掉它的话题');
+  assert.deepEqual(store.state.histories, await loadHistories(), '删除好友应连带清掉它的话题');
 });
 
 test('deleting the last agent clears the current selection', async () => {
@@ -262,7 +262,7 @@ test('autoPrefix is prepended to the outgoing question only', async () => {
 
   assert.equal(sent.at(-1).content, '请翻译:你好');
   assert.equal(store.state.messages[0].content, '你好', '界面与历史里不应带前缀');
-  assert.equal(loadHistories()[0].messages.at(-2).content, '你好');
+  assert.equal((await loadHistories())[0].messages.at(-2).content, '你好');
 });
 
 test('un_stream turns off streaming in the request', async () => {

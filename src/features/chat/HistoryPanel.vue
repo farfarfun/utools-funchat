@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { useChatStore } from '../../stores/chat.js';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import AgentAvatar from '../agents/AgentAvatar.vue';
-import { matchesHistoryQuery } from '../search/search.js';
+import { historyMatcher } from '../search/search.js';
 import { estimateConversationTokens } from './token-count.js';
 import type { History } from '../../types.ts';
 
@@ -30,12 +30,13 @@ function formatTokens(count: number): string {
   return String(count);
 }
 
-const filtered = computed(() => store.agentHistories.value
-  .filter((history) => {
-    if (tab.value === 'history' ? history.isFavorite : !history.isFavorite) return false;
-    return matchesHistoryQuery(history, query.value);
-  })
-  .map((history) => ({ history, tokens: historyTokens(history) })));
+const filtered = computed(() => {
+  // 搜索词解析一次就够，不必每条话题都重新归一化、切分
+  const matches = historyMatcher(query.value);
+  return store.agentHistories.value
+    .filter((history) => (tab.value === 'history' ? !history.isFavorite : history.isFavorite) && matches(history))
+    .map((history) => ({ history, tokens: historyTokens(history) }));
+});
 
 const totalTokens = computed(() => filtered.value.reduce((sum, item) => sum + item.tokens, 0));
 

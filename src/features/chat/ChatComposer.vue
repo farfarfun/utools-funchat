@@ -171,14 +171,6 @@ onBeforeUnmount(() => {
       <div class="tool-group tool-group-end">
         <button type="button" title="API 设置" aria-label="API 设置" :aria-expanded="popup === 'api'" @click="togglePopup('api')"><i class="iconfont icon-key" aria-hidden="true"></i></button>
         <button type="button" title="模型参数" aria-label="模型参数" :aria-expanded="popup === 'params'" @click="togglePopup('params')"><i class="iconfont icon-params" aria-hidden="true"></i></button>
-        <div class="popup-anchor">
-          <button type="button" title="聊天风格" aria-label="聊天风格" :aria-expanded="popup === 'style'" @click="togglePopup('style')"><i class="iconfont icon-nuclear-outline" aria-hidden="true"></i></button>
-          <div v-if="popup === 'style'" class="composer-menu style-menu" role="menu">
-            <button :class="{ active: (store.state.settings.chatStyle || 'chat') === 'chat' }" type="button" role="menuitemradio" @click="updateSetting('chatStyle', 'chat')"><i class="iconfont icon-chat"></i>聊天风格</button>
-            <button :class="{ active: store.state.settings.chatStyle === 'compact' }" type="button" role="menuitemradio" @click="updateSetting('chatStyle', 'compact')"><svg class="whirlwind-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"><circle cx="24" cy="24" r="5"></circle><path d="M23.5 44C16.6 44 11 38.4 11 31.5S16.6 19 23.5 19M44 23.5C44 30.4 38.4 36 31.5 36S19 30.4 19 23.5M23.5 29C30.4 29 36 23.4 36 16.5S30.4 4 23.5 4M29 23.5C29 16.6 23.4 11 16.5 11S4 16.6 4 23.5"></path></g></svg>紧凑风格</button>
-            <button :class="{ active: store.state.settings.chatStyle === 'official' }" type="button" role="menuitemradio" @click="updateSetting('chatStyle', 'official')"><i class="iconfont icon-engine-atom-nuclear"></i>官网风格</button>
-          </div>
-        </div>
         <div class="popup-anchor more-anchor">
           <button class="more-button" type="button" title="更多设置" aria-label="更多设置" :aria-expanded="popup === 'more'" @click="togglePopup('more')"><span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="12" r="3" fill="var(--color-text-3)"></circle><circle cx="24" cy="24" r="3" fill="var(--color-text-3)"></circle><circle cx="24" cy="35" r="3" fill="var(--color-text-3)"></circle></svg></span></button>
           <div v-if="popup === 'more'" class="composer-menu more-menu" role="menu">
@@ -246,8 +238,6 @@ onBeforeUnmount(() => {
 .composer-tools .composer-menu > button { width: 100%; height: 36px; padding: 0 8px; display: flex; align-items: center; gap: 8px; border-radius: 3px; color: var(--color-text-2); text-align: left; }
 .composer-tools .composer-menu > button:hover, .composer-tools .composer-menu > button.active { color: var(--color-text-2); background: var(--color-primary-light-1); }
 .composer-menu i { width: 16px; font-size: 16px !important; }
-.whirlwind-icon { width: 16px; height: 16px; flex: 0 0 16px; }
-.style-menu { right: -45px; width: 118px; }
 .more-menu { right: -16px; bottom: 22px; width: 140px; }
 .tool-group-end button:nth-child(2) .iconfont { font-size: 18px; line-height: 28px; }
 .composer-tools .iconfont, .composer-tools .icon { display: block; line-height: 1.5715; }

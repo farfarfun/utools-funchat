@@ -9,7 +9,6 @@ export const OPTIONAL_PARAM_DEFAULTS = {
 };
 
 const FORM_DEFAULTS: AgentFormValues = {
-  group: '',
   model: '',
   type: 'prompt',
   nickname: '',

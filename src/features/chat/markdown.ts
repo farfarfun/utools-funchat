@@ -40,14 +40,26 @@ function escapeHtml(value: unknown): string {
     .replace(/>/g, '&gt;');
 }
 
+// 一次 renderToString 约 0.5 ms，而流式回复每来一个 chunk 就要把整条消息的公式全部重排
+// 一遍：十几个公式就能吃掉一帧的预算。公式源码是纯函数的输入，缓存后只有正在生成的那一个
+// 会 miss。上限防止长会话无限增长，超出就整体丢弃重建（公式总量有限，不值得维护 LRU）。
+const MATH_CACHE_LIMIT = 512;
+const mathCache = new Map<string, string>();
+
 function renderMath(expression: string, displayMode: boolean): string {
+  const source = expression.trim();
   if (!katex) {
     loadKatex();
-    // 占位同样保留原文，加载完成前后内容一致，只是没有排版
-    return `<code class="math-pending">${escapeHtml(expression.trim())}</code>`;
+    // 占位同样保留原文，加载完成前后内容一致，只是没有排版。
+    // 这个分支不能进缓存，否则 KaTeX 到位后还会一直返回占位。
+    return `<code class="math-pending">${escapeHtml(source)}</code>`;
   }
+  const key = `${displayMode ? 'b' : 'i'}\n${source}`;
+  const cached = mathCache.get(key);
+  if (cached !== undefined) return cached;
+  let html: string;
   try {
-    return katex.renderToString(expression.trim(), {
+    html = katex.renderToString(source, {
       displayMode,
       throwOnError: false,
       // 只出 HTML 不出 MathML：少一套标签要过消毒，也避免读屏软件重复朗读两份内容
@@ -56,8 +68,11 @@ function renderMath(expression: string, displayMode: boolean): string {
     });
   } catch {
     // KaTeX 彻底失败时退回原文，宁可显示源码也不要把内容吞掉
-    return escapeHtml(expression);
+    html = escapeHtml(expression);
   }
+  if (mathCache.size >= MATH_CACHE_LIMIT) mathCache.clear();
+  mathCache.set(key, html);
+  return html;
 }
 
 // 块级：$$...$$ 与 \[...\]

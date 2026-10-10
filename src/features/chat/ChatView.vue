@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AgentAvatar from '../agents/AgentAvatar.vue';
 import { useChatStore } from '../../stores/chat.js';
 import ChatComposer from './ChatComposer.vue';
@@ -10,6 +10,7 @@ import MessageItem from './MessageItem.vue';
 
 const store = useChatStore();
 const scroll = ref();
+const content = ref();
 const greeting = computed(() => ({ role: 'assistant', content: store.state.currentAgent?.content || '' }));
 const needsApiSetup = computed(() => store.state.settings.provider !== 'utools' && !store.state.settings.apiKey && !store.state.settings.baseUrl);
 const quickQuestions = computed(() => (store.state.messages.length ? [] : store.state.currentAgent?.quick_questions || []));
@@ -17,7 +18,7 @@ const apiSetup = reactive({ apiKey: store.state.settings.apiKey || '', baseUrl: 
 // 标题栏显示的话题名：已落盘的话题取它的标题，新话题还没有标题就先留空
 const topicTitle = computed(() => store.agentHistories.value
   .find((history) => history._id === store.state.currentAgent?.chatId)?.title || '');
-const headerModel = computed(() => store.state.currentAgent?.params?.model || store.state.settings.model || '');
+const headerModel = computed(() => store.activeModel.value);
 
 const messageKeys = new WeakMap();
 let messageKeySeed = 0;
@@ -68,12 +69,22 @@ function scrollToBottom() {
   jumpToBottom('smooth');
 }
 
-// 流式回复期间只在用户贴着底时才跟随，
-// 否则他往上翻看上文会被每个新 token 拽回底部。
-watch(() => store.state.messages.at(-1)?.content, async () => {
-  if (!stick.value) return;
-  await nextTick();
-  jumpToBottom();
+// 跟随底部要盯容器高度，不能盯消息内容：有三种情况高度变了而数据没变——渲染是节流的，
+// 最后一次尾随渲染落在数据变化之后；KaTeX 是懒加载的，到位后整条消息的公式会重排；
+// 图片也是加载完才占到位置。盯 content 的那一版在每条回复收尾时都会停在离底一两行的地方。
+// 顺带也省掉了每个 chunk 一次 nextTick 加一次 scrollHeight 读取。
+// 只在用户贴着底时才跟随，否则他往上翻看上文会被每个新 token 拽回底部。
+let observer: ResizeObserver | null = null;
+
+onMounted(() => {
+  if (typeof ResizeObserver !== 'function' || !content.value) return;
+  observer = new ResizeObserver(() => { if (stick.value) jumpToBottom(); });
+  observer.observe(content.value);
+});
+
+onBeforeUnmount(() => {
+  observer?.disconnect();
+  observer = null;
 });
 
 // 自己刚发出消息，无论此前滚到哪都回到底部
@@ -120,7 +131,7 @@ watch(() => [store.state.currentAgent?._id, store.state.currentAgent?.chatId], a
         <i class="iconfont icon-down" aria-hidden="true"></i>
       </button>
       <section ref="scroll" class="messages" aria-live="polite" @scroll.passive="onScroll">
-        <div class="messages-content">
+        <div ref="content" class="messages-content">
           <div v-if="needsApiSetup" class="api-setup-wrap">
             <form class="api-setup-card" @submit.prevent="saveApiSetup">
               <AgentAvatar class="setup-avatar" :agent="store.state.currentAgent" :size="60" />

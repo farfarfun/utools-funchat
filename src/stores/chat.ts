@@ -1,4 +1,4 @@
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { streamChat } from '../services/chat.ts';
 import { host } from '../services/utools.ts';
 import { clonePlain } from '../services/plain-clone.ts';
@@ -74,8 +74,30 @@ function presetPrefix(): ChatMessage[] {
   return presetHidden ? preset : preset[0]?.role === 'system' ? preset.slice(0, 1) : [];
 }
 
+// 「临时调参」弹窗标题承诺的是「发起新话题后失效」，但直接改好友文档做不到这件事：之后
+// 任何一次 saveAgent（哪怕只是点个置顶）都会把这份临时值顺手写进磁盘，而且换话题也不会退
+// 回去。所以覆盖值单独存一份，只在组请求时合并进去，换话题、换好友、打开旧话题都清空。
+const paramOverrides = reactive<Record<string, any>>({});
+
+function setParamOverrides(next: Record<string, unknown>): void {
+  Object.assign(paramOverrides, next);
+}
+
+function clearParamOverrides(): void {
+  for (const key of Object.keys(paramOverrides)) delete paramOverrides[key];
+}
+
+// contextLength 挂在好友文档上而不是 params 里，合并时要排除掉，否则会被当成模型参数发出去
+function overriddenParams(agent: Agent): Agent {
+  const keys = Object.keys(paramOverrides).filter((key) => key !== 'contextLength');
+  if (!keys.length) return agent;
+  const params: AgentParams = { ...agent.params };
+  for (const key of keys) params[key] = paramOverrides[key];
+  return { ...agent, params };
+}
+
 function requestMessages(): ChatMessage[] {
-  const size = Math.max(Number(state.currentAgent?.contextLength) || 16, 1) * 2;
+  const size = Math.max(Number(paramOverrides.contextLength ?? state.currentAgent?.contextLength) || 16, 1) * 2;
   const messages = clonePlain(state.messages.slice(-size)) as ChatMessage[];
   const prefix = String(state.currentAgent?.autoPrefix || '').trim();
   const lastUser = prefix ? messages.findLastIndex((message) => message.role === 'user') : -1;
@@ -84,8 +106,10 @@ function requestMessages(): ChatMessage[] {
   return [...presetPrefix(), ...messages];
 }
 
+// 不在这里克隆：唯一的去向是 saveHistory，它内部的 stripImagesToFit 已经 clonePlain 过一遍。
+// 带图会话每条消息都要多拷一份几百 KB 的 base64，白拷的代价不小。
 function conversationMessages(): ChatMessage[] {
-  return [...presetPrefix(), ...clonePlain(state.messages)];
+  return [...presetPrefix(), ...state.messages];
 }
 
 // loadHistories 会把所有会话文档（连同完整消息与 base64 图片）全部读出来再克隆一遍，
@@ -120,23 +144,33 @@ function applyPluginHeight(): void {
   host.setExpendHeight?.(Number(state.settings.windowHeight) || 660);
 }
 
-function agentActivityAt(agent: Agent): number {
-  const own = Number(agent.created_at) || Number(String(agent._id).slice(3)) || 0;
-  return state.histories.reduce((latest, history) => (
-    history.agentId === agent._id ? Math.max(latest, history.updatedAt || history.sortKey || 0) : latest
-  ), own);
+function ownActivityAt(agent: Agent): number {
+  return Number(agent.created_at) || Number(String(agent._id).slice(3)) || 0;
 }
 
+// 排序前把「好友 → 最近活跃时间」算成一张表。放在比较器里算的话，每次比较都要扫一遍
+// 全部历史，整个排序就是 O(好友数 × log 好友数 × 历史数)；现在是各扫一遍。
 function sortAgents(): void {
+  const latest = new Map<string, number>();
+  for (const history of state.histories) {
+    const at = history.updatedAt || history.sortKey || 0;
+    if (at > (latest.get(history.agentId) ?? 0)) latest.set(history.agentId, at);
+  }
+  const activity = new Map(state.agents.map((agent) => [
+    agent._id,
+    Math.max(ownActivityAt(agent), latest.get(agent._id) ?? 0),
+  ]));
   state.agents.sort((left, right) => {
     if (Boolean(left.is_top) !== Boolean(right.is_top)) return left.is_top ? -1 : 1;
-    return agentActivityAt(right) - agentActivityAt(left);
+    return (activity.get(right._id) ?? 0) - (activity.get(left._id) ?? 0);
   });
 }
 
 async function init(): Promise<void> {
+  // 必须串行：loadAgents 开头会做一次性的旧数据搬迁，chat@ 文档也在搬迁范围内，
+  // 并发读会漏掉刚搬进来的会话
   state.agents = await loadAgents();
-  state.histories = loadHistories();
+  state.histories = await loadHistories();
   sortAgents();
   state.currentAgent = state.agents[0] || null;
   state.messages = [];
@@ -150,6 +184,7 @@ async function init(): Promise<void> {
 function selectAgent(agent: Agent | null | undefined): void {
   if (!agent) return;
   stop();
+  clearParamOverrides();
   delete agent.chatId;
   state.currentAgent = agent;
   state.messages = initialMessages(agent);
@@ -275,6 +310,7 @@ function togglePin(agent: Agent): void {
 
 function newConversation(): void {
   stop();
+  clearParamOverrides();
   state.messages = [];
   presetHidden = Boolean(state.currentAgent);
   if (state.currentAgent) state.currentAgent.chatId = `chat@${state.currentAgent._id}#${Date.now()}`;
@@ -302,7 +338,7 @@ async function sendContent(content: ChatMessage['content']): Promise<boolean> {
   try {
     await streamChat({
       settings: state.settings,
-      agent: state.currentAgent,
+      agent: overriddenParams(state.currentAgent),
       messages: requestMessages().slice(0, -1),
       signal: abortController.signal,
       onDelta: (chunk) => { if (streamId === activeStream) assistantMessage.content += chunk; },
@@ -357,6 +393,7 @@ function openHistory(history: History): void {
   const agent = state.agents.find((item) => item._id === history.agentId);
   if (!agent) return;
   stop();
+  clearParamOverrides();
   state.currentAgent = agent;
   agent.chatId = history._id;
   state.messages = history.messages[0]?.role === 'system' ? clonePlain(history.messages.slice(1)) : clonePlain(history.messages);
@@ -437,8 +474,38 @@ const routeModels = computed(() => {
   return [...new Set([...fetched, ...used])];
 });
 
-const tokenCount = computed(() => estimateConversationTokens(state.messages));
+// Token 数在标题栏和输入区一直显示着，而流式回复每来一个 chunk 就要把正在生成的那条消息
+// 整段重新扫一遍（折叠空白、数汉字、算 UTF-8 字节），于是总开销是回复长度的平方：实测 5400
+// 字要 256 ms，21600 字要 4633 ms——长回复光更新这个数字就能吃掉几秒主线程。
+// 这个数字只是给人看的，没有任何逻辑依赖它，所以改成节流显示：变化后先立即算一次，之后最多
+// 每 160 ms 一次，并总是补一次尾随计算。每次显示的值都还是整段精算的结果，只是不再逐 chunk 算。
+const TOKEN_INTERVAL = 160;
+const tokenCount = ref(estimateConversationTokens(state.messages));
+let tokenCountAt = 0;
+let tokenCountTimer: ReturnType<typeof setTimeout> | null = null;
+
+function refreshTokenCount(): void {
+  tokenCountTimer = null;
+  tokenCountAt = Date.now();
+  tokenCount.value = estimateConversationTokens(state.messages);
+}
+
+// getter 只取 content 的引用来建立依赖，不在这里扫内容——扫描本身才是要省掉的开销。
+// 每次都返回新数组，所以任何一条消息的内容变动都会触发回调。
+watch(() => state.messages.map((message) => message?.content), () => {
+  const wait = TOKEN_INTERVAL - (Date.now() - tokenCountAt);
+  if (wait > 0) {
+    // 已经排过一次就不必再排，回调读的是届时的最新内容
+    tokenCountTimer ||= setTimeout(refreshTokenCount, wait);
+    return;
+  }
+  if (tokenCountTimer) clearTimeout(tokenCountTimer);
+  refreshTokenCount();
+});
+
 const agentHistories = computed(() => state.histories.filter((history) => history.agentId === state.currentAgent?._id));
+// 本次话题实际会用的模型：临时调参改过就显示改后的，界面上不能还停在好友自己的设置
+const activeModel = computed(() => paramOverrides.model || state.currentAgent?.params?.model || state.settings.model || '');
 
 export function useChatStore() {
   return {
@@ -446,6 +513,9 @@ export function useChatStore() {
     tokenCount,
     agentHistories,
     routeModels,
+    activeModel,
+    paramOverrides,
+    setParamOverrides,
     init,
     selectAgent,
     cycleAgent,

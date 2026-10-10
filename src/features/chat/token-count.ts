@@ -2,6 +2,8 @@ import { imageUrls } from './message-content.ts';
 import type { MessageLike } from './message-content.ts';
 
 const CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
+// 无状态，可以全模块共用一个；estimateTokens 在流式输出期间是按 token 调用的
+const UTF8 = new TextEncoder();
 
 // 视觉模型按图块计费，一张常规尺寸的图大致是这个量级。取个中间值，
 // 免得带图会话的 Token 估算差出一个数量级。
@@ -30,7 +32,7 @@ export function estimateTokens(value: MessageLike): number {
   if (!text) return images;
   const cjkCount = text.match(CJK_PATTERN)?.length || 0;
   const other = text.replace(CJK_PATTERN, '').trim();
-  return images + cjkCount + (other ? Math.ceil(new TextEncoder().encode(other).length / 4) : 0);
+  return images + cjkCount + (other ? Math.ceil(UTF8.encode(other).length / 4) : 0);
 }
 
 // 流式回复期间每个 chunk 都会改动最后一条消息，而整段会话的 Token 数是界面上一直显示
