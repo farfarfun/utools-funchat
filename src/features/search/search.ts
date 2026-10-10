@@ -32,7 +32,7 @@ export function matchesHistoryQuery(record: HistoryRecord, query: unknown): bool
  * @param limit 最大返回数量，默认为 30。
  * @returns 匹配且按 `sortKey` 降序排列的记录。
  */
-export function filterHistoryRecords(records: HistoryRecord[], query: unknown, limit = 30): HistoryRecord[] {
+export function filterHistoryRecords<T extends HistoryRecord>(records: readonly T[], query: unknown, limit = 30): T[] {
   if (!normalize(query).trim()) return [];
   return records
     .filter((record) => matchesHistoryQuery(record, query))

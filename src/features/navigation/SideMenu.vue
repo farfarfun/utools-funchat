@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { host } from '../../services/utools.js';
 import { useChatStore } from '../../stores/chat.js';
+import type { ThemePreference } from '../../types.ts';
 
 defineProps({ active: { type: String, required: true } });
 const emit = defineEmits(['navigate']);
@@ -16,19 +17,19 @@ const topItems = [
   { id: 'prompts', icon: 'icon-bot', label: 'AI 市场' },
 ];
 
-const themes = [
+const themes: { value: ThemePreference; label: string; icon: string }[] = [
   { value: 'light', label: '浅色主题', icon: 'icon-light' },
   { value: 'dark', label: '深色主题', icon: 'icon-dark' },
   { value: 'system', label: '跟随系统', icon: 'icon-system' },
 ];
 
-function setTheme(theme) {
+function setTheme(theme: ThemePreference) {
   store.updateSettings({ ...store.state.settings, theme });
   themeOpen.value = false;
 }
 
-function closeTheme(event) {
-  if (!themeAnchor.value?.contains(event.target)) themeOpen.value = false;
+function closeTheme(event: Event) {
+  if (!themeAnchor.value?.contains(event.target as Node)) themeOpen.value = false;
 }
 
 onMounted(() => document.addEventListener('pointerdown', closeTheme));

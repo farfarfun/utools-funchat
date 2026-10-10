@@ -5,13 +5,14 @@ import { useChatStore } from '../../stores/chat.js';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import AgentAvatar from './AgentAvatar.vue';
 import AgentDialog from './AgentDialog.vue';
+import type { Agent, History } from '../../types.ts';
 
 const store = useChatStore();
 const query = ref('');
 const agentDialog = ref();
 const confirmDialog = ref();
 const menuElement = ref();
-const contextMenu = reactive({ open: false, x: 0, y: 0, agent: null });
+const contextMenu = reactive<{ open: boolean; x: number; y: number; agent: Agent | null }>({ open: false, x: 0, y: 0, agent: null });
 
 const filteredAgents = computed(() => {
   const value = query.value.trim().toLocaleLowerCase('zh-CN');
@@ -20,29 +21,29 @@ const filteredAgents = computed(() => {
 });
 const historyResults = computed(() => filterHistoryRecords(store.state.histories, query.value, 12));
 
-function selectAgent(agent) {
+function selectAgent(agent: Agent) {
   store.selectAgent(agent);
   query.value = '';
 }
 
-function selectHistory(history) {
+function selectHistory(history: History) {
   store.openHistory(history);
   query.value = '';
 }
 
-async function deleteSelectedAgent(agent) {
+async function deleteSelectedAgent(agent: Agent) {
   if (await confirmDialog.value.open({ title: '删除好友', message: `确定删除好友【${agent.nickname}】吗？`, confirmText: '删除' })) store.deleteAgent(agent);
 }
 
-function openContextMenu(event, agent) {
+function openContextMenu(event: MouseEvent, agent: Agent) {
   contextMenu.agent = agent;
   contextMenu.x = Math.max(4, Math.min(event.clientX - 59, window.innerWidth - 122));
   contextMenu.y = Math.max(4, Math.min(event.clientY + 4, window.innerHeight - 162));
   contextMenu.open = true;
 }
 
-function closeContextMenu(event) {
-  if (!menuElement.value?.contains(event.target)) contextMenu.open = false;
+function closeContextMenu(event: Event) {
+  if (!menuElement.value?.contains(event.target as Node)) contextMenu.open = false;
 }
 
 function editAgent() {
@@ -52,17 +53,17 @@ function editAgent() {
 }
 
 function togglePin() {
-  store.togglePin(contextMenu.agent);
+  if (contextMenu.agent) store.togglePin(contextMenu.agent);
   contextMenu.open = false;
 }
 
 function deleteFromMenu() {
   const agent = contextMenu.agent;
   contextMenu.open = false;
-  deleteSelectedAgent(agent);
+  if (agent) deleteSelectedAgent(agent);
 }
 
-function closeOnEscape(event) {
+function closeOnEscape(event: KeyboardEvent) {
   if (event.key === 'Escape') contextMenu.open = false;
 }
 

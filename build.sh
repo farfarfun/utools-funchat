@@ -21,6 +21,8 @@ fi
 
 pnpm install --frozen-lockfile
 pnpm test
+# 类型检查已经清零，纳入构建流程防止回归
+pnpm typecheck
 node --check "$PLUGIN_DIR/preload.js"
 node -e "JSON.parse(require('fs').readFileSync('$PLUGIN_DIR/plugin.json', 'utf8'))"
 rm -rf -- "$PLUGIN_DIR/dist"

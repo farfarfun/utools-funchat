@@ -10,11 +10,11 @@ import { useChatStore } from './stores/chat.js';
 const store = useChatStore();
 const logoUrl = `${import.meta.env.BASE_URL}logo.png`;
 
-function handleShortcut(event) {
+function handleShortcut(event: KeyboardEvent) {
   if (event.defaultPrevented || event.altKey || document.querySelector('dialog[open]')) return;
   const modifier = event.ctrlKey || event.metaKey;
   if (modifier && !event.shiftKey) {
-    const actions = {
+    const actions: Record<string, () => void> = {
       n: () => store.newConversation(),
       b: () => { store.state.sidebarCollapsed = !store.state.sidebarCollapsed; },
       h: () => { store.state.historyOpen = !store.state.historyOpen; },
@@ -44,7 +44,7 @@ onMounted(async () => {
   try {
     await store.init();
   } catch (error) {
-    store.state.error = error.message || String(error);
+    store.state.error = error instanceof Error ? error.message : String(error);
     store.state.ready = true;
   }
 });

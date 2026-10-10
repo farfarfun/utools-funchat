@@ -22,7 +22,7 @@ const headerModel = computed(() => store.state.currentAgent?.params?.model || st
 const messageKeys = new WeakMap();
 let messageKeySeed = 0;
 
-function messageKey(message, index) {
+function messageKey(message: unknown, index: number) {
   if (!message || typeof message !== 'object') return `${store.state.currentAgent?._id}-${index}`;
   if (!messageKeys.has(message)) messageKeys.set(message, `message-${++messageKeySeed}`);
   return messageKeys.get(message);

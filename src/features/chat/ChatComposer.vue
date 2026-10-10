@@ -108,7 +108,7 @@ async function submit() {
   }
 }
 
-function keydown(event) {
+function keydown(event: KeyboardEvent) {
   const ctrlMode = (store.state.settings.sendMode || 'ctrl-enter') === 'ctrl-enter';
   if (event.key === 'Enter' && !event.shiftKey && (ctrlMode ? event.ctrlKey || event.metaKey : !event.ctrlKey && !event.metaKey)) {
     event.preventDefault();
@@ -116,17 +116,17 @@ function keydown(event) {
   }
 }
 
-function togglePopup(value) {
+function togglePopup(value: string) {
   popup.value = popup.value === value ? '' : value;
 }
 
-function updateSetting(key, value) {
+function updateSetting(key: string, value: unknown) {
   store.updateSettings({ ...store.state.settings, [key]: value });
   popup.value = '';
 }
 
-function closeFromOutside(event) {
-  if (!root.value?.contains(event.target)) popup.value = '';
+function closeFromOutside(event: Event) {
+  if (!root.value?.contains(event.target as Node)) popup.value = '';
 }
 
 // API 浮层和几个下拉菜单都不是原生 dialog，Esc 不会自动关，得自己接。

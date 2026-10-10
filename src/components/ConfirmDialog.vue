@@ -40,7 +40,7 @@ defineExpose({ open });
   <dialog ref="dialog" class="confirm-dialog" tabindex="-1" @close="closed">
     <h2>{{ content.title }}</h2>
     <p>{{ content.message }}</p>
-    <footer><button type="button" @click="dialog.close()">取消</button><button class="primary" type="button" @click="confirm">{{ content.confirmText }}</button></footer>
+    <footer><button type="button" @click="dialog?.close()">取消</button><button class="primary" type="button" @click="confirm">{{ content.confirmText }}</button></footer>
   </dialog>
 </template>
 

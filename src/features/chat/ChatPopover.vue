@@ -8,7 +8,7 @@ const props = defineProps({ kind: { type: String, required: true } });
 const emit = defineEmits(['close']);
 const store = useChatStore();
 
-function paramValue(value, fallback) {
+function paramValue(value: unknown, fallback: number): number {
   const parsed = Number(value ?? fallback);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -17,7 +17,7 @@ function paramValue(value, fallback) {
 
 const tab = ref('routes');
 const routes = computed(() => store.state.settings.apiRoutes || []);
-const editingId = ref(store.state.settings.activeRouteId || routes.value[0]?.id || '');
+const editingId = ref<string>(store.state.settings.activeRouteId || routes.value[0]?.id || '');
 
 const blankRoute = () => ({ id: '', name: '', provider: 'openai', baseUrl: '', apiKey: '', models: [] as string[], modelsFetchedAt: 0 });
 const draft = reactive(blankRoute());
@@ -65,7 +65,7 @@ async function manageModels() {
   if (kept) draft.models = kept;
 }
 
-function loadDraft(routeId) {
+function loadDraft(routeId: string) {
   const route = routes.value.find((item) => item.id === routeId);
   Object.assign(draft, route ? { ...blankRoute(), ...route } : blankRoute());
   pullError.value = '';
@@ -74,7 +74,7 @@ function loadDraft(routeId) {
 loadDraft(editingId.value);
 watch(editingId, loadDraft);
 
-function editRoute(routeId) {
+function editRoute(routeId: string) {
   editingId.value = routeId;
 }
 
@@ -95,17 +95,17 @@ function saveRoute() {
     modelsFetchedAt: draft.modelsFetchedAt,
   };
   store.saveApiRoute(saved);
-  editingId.value = store.state.settings.activeRouteId;
+  editingId.value = store.state.settings.activeRouteId || '';
   emit('close');
 }
 
-function deleteRoute(routeId) {
+function deleteRoute(routeId: string) {
   store.removeApiRoute(routeId);
   editingId.value = store.state.settings.activeRouteId || '';
   loadDraft(editingId.value);
 }
 
-function useRoute(routeId) {
+function useRoute(routeId: string) {
   store.selectApiRoute(routeId);
   editingId.value = routeId;
 }
@@ -135,7 +135,9 @@ async function chooseModel() {
   saveParams();
 }
 
-const parameterRows = [
+type ParamRow = { key: keyof typeof params; label: string; min: number; max: number; step: number };
+
+const parameterRows: ParamRow[] = [
   { key: 'contextLength', label: '上下文数', min: 2, max: 36, step: 1 },
   { key: 'max_tokens', label: '最大回复', min: 0, max: 16384, step: 1 },
   { key: 'temperature', label: '随机性', min: 0, max: 2, step: 0.1 },
@@ -148,18 +150,20 @@ function saveParams() {
   const agent = store.state.currentAgent;
   if (!agent) return;
   agent.contextLength = params.contextLength;
-  Object.assign(agent.params, {
+  // params 可能还不存在，直接 Object.assign 会把 undefined 当目标
+  agent.params = {
+    ...agent.params,
     model: params.model.trim(),
     max_tokens: params.max_tokens,
     temperature: params.temperature,
     top_p: params.top_p,
     frequency_penalty: params.frequency_penalty,
     presence_penalty: params.presence_penalty,
-  });
+  };
 }
 
-function rangeStyle(row) {
-  return { '--range-progress': `${((params[row.key] - row.min) / (row.max - row.min)) * 100}%` };
+function rangeStyle(row: ParamRow) {
+  return { '--range-progress': `${((Number(params[row.key]) - row.min) / (row.max - row.min)) * 100}%` };
 }
 </script>
 

@@ -64,7 +64,7 @@ function addFromMarket(item: MarketAgent) {
   });
 }
 
-function openUrl(url) {
+function openUrl(url: string) {
   host.shellOpenExternal(url);
 }
 </script>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch, type PropType } from 'vue';
+import type { Agent } from '../../types.ts';
 import { host } from '../../services/utools.js';
 import AgentAvatar from '../agents/AgentAvatar.vue';
 import { previewImage } from './image-preview.js';
@@ -11,7 +12,7 @@ import { messageText } from './token-count.js';
 const props = defineProps({
   message: { type: Object, required: true },
   index: { type: Number, default: -1 },
-  agent: { type: Object, required: true },
+  agent: { type: Object as PropType<Agent | null>, required: true },
   last: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
 });
@@ -29,11 +30,11 @@ const dropped = computed(() => droppedImageCount(props.message));
 
 watch(long, (value) => { if (value) collapsed.value = true; });
 
-function openLink(event) {
-  const anchor = event.target.closest?.('a[href]');
+function openLink(event: MouseEvent) {
+  const anchor = (event.target as Element).closest?.('a[href]');
   if (!anchor) return;
   event.preventDefault();
-  const href = anchor.getAttribute('href');
+  const href = anchor.getAttribute('href') || '';
   if (/^https?:\/\//iu.test(href)) host.shellOpenExternal(href);
 }
 
@@ -44,7 +45,7 @@ async function copy() {
 }
 
 // 出图前必须先展开，否则折叠的长消息只会截到一半
-async function withExpanded(action) {
+async function withExpanded(action: () => Promise<unknown>) {
   exporting.value = true;
   const previous = collapsed.value;
   collapsed.value = false;
@@ -75,7 +76,7 @@ async function copyImage() {
     <AgentAvatar v-if="message.role === 'assistant'" :agent="agent" :size="26" />
     <span v-else class="user-avatar"><i class="iconfont icon-user" aria-hidden="true"></i></span>
     <div class="chat-content">
-      <span class="nickname">{{ message.role === 'assistant' ? agent.nickname : '我' }}</span>
+      <span class="nickname">{{ message.role === 'assistant' ? agent?.nickname : '我' }}</span>
       <div ref="body" class="message-body" :class="{ exporting }">
         <div v-if="images.length || dropped" class="message-images">
           <button v-for="image in images" :key="image" class="message-image" type="button" title="查看大图" @click="previewImage(image)">

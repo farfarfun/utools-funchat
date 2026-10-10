@@ -5,6 +5,7 @@ import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import AgentAvatar from '../agents/AgentAvatar.vue';
 import { matchesHistoryQuery } from '../search/search.js';
 import { estimateConversationTokens } from './token-count.js';
+import type { History } from '../../types.ts';
 
 const store = useChatStore();
 const confirmDialog = ref();
@@ -12,8 +13,8 @@ const query = ref('');
 const tab = ref('history');
 
 // 同一条话题只在内容变化后才重算，避免长列表反复遍历全部消息
-const tokenCache = new Map();
-function historyTokens(history) {
+const tokenCache = new Map<string, number>();
+function historyTokens(history: History): number {
   const key = `${history._id}@${history.updatedDate || ''}`;
   let cached = tokenCache.get(key);
   if (cached === undefined) {
@@ -23,7 +24,7 @@ function historyTokens(history) {
   return cached;
 }
 
-function formatTokens(count) {
+function formatTokens(count: number): string {
   if (count >= 10000) return `${(count / 1000).toFixed(0)}k`;
   if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
   return String(count);
@@ -38,14 +39,14 @@ const filtered = computed(() => store.agentHistories.value
 
 const totalTokens = computed(() => filtered.value.reduce((sum, item) => sum + item.tokens, 0));
 
-function formatDate(value) {
-  const date = new Date(value);
+function formatDate(value: string | undefined): string {
+  const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return value || '';
-  const pad = (part) => String(part).padStart(2, '0');
+  const pad = (part: number) => String(part).padStart(2, '0');
   return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-async function deleteSelectedHistory(history) {
+async function deleteSelectedHistory(history: History) {
   if (await confirmDialog.value.open({ title: '删除话题', message: '确定删除这条话题吗？', confirmText: '删除' })) store.deleteHistory(history);
 }
 

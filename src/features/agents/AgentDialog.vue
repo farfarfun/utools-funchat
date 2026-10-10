@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue';
 import { useChatStore } from '../../stores/chat.js';
 import { agentFormValues } from './agent-form.js';
+import type { Agent, AgentFormValues } from '../../types.ts';
 import AgentAvatar from './AgentAvatar.vue';
 import ModelPickerDialog from '../chat/ModelPickerDialog.vue';
 
@@ -35,7 +36,7 @@ const parameterRows = [
   { key: 'frequency_penalty', label: '重复属性', min: -2, max: 2, step: 0.1 },
 ];
 
-function open(agent = null) {
+function open(agent: Agent | null = null) {
   editing.value = agent;
   Object.assign(form, agentFormValues(agent));
   question.value = '';
@@ -53,7 +54,8 @@ function submit() {
     tab.value = 'basic';
     return;
   }
-  const values = { ...form, paramsFunctions };
+  // form 是宽松的 Record，展开后拿不回 AgentFormValues 的必填字段，这里显式断言
+  const values = { ...form, paramsFunctions } as AgentFormValues;
   if (editing.value) store.updateAgent(editing.value, values);
   else store.addAgent(values);
   dialog.value.close();
@@ -66,7 +68,7 @@ function addQuestion() {
   question.value = '';
 }
 
-function rangeStyle(row) {
+function rangeStyle(row: { key: string; min: number; max: number }) {
   return { '--range-progress': `${((Number(form[row.key]) - row.min) / (row.max - row.min)) * 100}%` };
 }
 
