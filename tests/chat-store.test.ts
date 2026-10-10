@@ -148,6 +148,29 @@ test('a stopped uTools stream can no longer write into the conversation', async 
   assert.equal(store.state.messages.at(-1).content, '开始');
 });
 
+// 历史列表改成了原地增删（不再每次操作都整库重读），内存与库一旦分叉很难察觉，
+// 所以把「状态等于重新读库的结果」作为不变量钉住。
+test('the in-memory history list stays identical to a fresh read from the db', async () => {
+  await setup({ agents: 2 });
+  host.ai = replyWith('好的');
+
+  await store.send('第一个话题');
+  store.newConversation();
+  await store.send('第二个话题');
+  store.selectAgent(store.state.agents.find((agent) => agent._id === 'ai@1'));
+  await store.send('另一个好友的话题');
+  assert.deepEqual(store.state.histories, loadHistories(), '连续发送后应一致');
+
+  store.toggleFavorite(store.state.histories[0]);
+  assert.deepEqual(store.state.histories, loadHistories(), '收藏后应一致');
+
+  store.deleteHistory(store.state.histories[1]);
+  assert.deepEqual(store.state.histories, loadHistories(), '删除话题后应一致');
+
+  store.deleteAgent(store.state.agents.find((agent) => agent._id === 'ai@2'));
+  assert.deepEqual(store.state.histories, loadHistories(), '删除好友应连带清掉它的话题');
+});
+
 test('deleting the last agent clears the current selection', async () => {
   await setup({ agents: 1 });
 

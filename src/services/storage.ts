@@ -96,21 +96,25 @@ export function removeAgent(agentId: string): void {
   for (const history of allDocuments(`chat@${agentId}#`)) host.db.remove(history);
 }
 
+// agentId 与 sortKey 都是从 _id 里解析出来的，不落盘
+function toHistory(document: StorageDocument): History {
+  const separator = document._id.lastIndexOf('#');
+  return {
+    ...document,
+    messages: document.messages,
+    agentId: separator < 0 ? document._id.slice(5) : document._id.slice(5, separator),
+    sortKey: separator < 0 ? 0 : Number(document._id.slice(separator + 1)) || 0,
+  } as History;
+}
+
 /**
  * 按最近会话优先的顺序读取全部历史记录。
  * @returns 带好友标识和排序键的历史记录副本。
  */
 export function loadHistories(): History[] {
-  return allDocuments('chat@').flatMap((document) => {
-    if (!Array.isArray(document.messages)) return [];
-    const separator = document._id.lastIndexOf('#');
-    return [{
-      ...document,
-      messages: document.messages,
-      agentId: separator < 0 ? document._id.slice(5) : document._id.slice(5, separator),
-      sortKey: separator < 0 ? 0 : Number(document._id.slice(separator + 1)) || 0,
-    } as History];
-  }).sort((left, right) => right.sortKey - left.sortKey);
+  return allDocuments('chat@')
+    .flatMap((document) => (Array.isArray(document.messages) ? [toHistory(document)] : []))
+    .sort((left, right) => right.sortKey - left.sortKey);
 }
 
 /**
@@ -137,9 +141,9 @@ export function stripImagesToFit(messages: ChatMessage[], budget = HISTORY_SIZE_
 /**
  * 新建或更新一条聊天历史记录。
  * @param history 会话标识、标题、消息及收藏状态。
- * @returns 无返回值。
+ * @returns 写入后的记录，供调用方原地更新列表而不必整库重读。
  */
-export function saveHistory({ id, title, messages, favorite = false }: HistoryInput): void {
+export function saveHistory({ id, title, messages, favorite = false }: HistoryInput): History {
   const document: StorageDocument = host.db.get(id) || { _id: id };
   const now = new Date().toLocaleString('zh-CN', { hour12: false });
   document.title = title;
@@ -148,7 +152,9 @@ export function saveHistory({ id, title, messages, favorite = false }: HistoryIn
   document.updatedDate = now;
   document.updatedAt = Date.now();
   document.isFavorite = favorite;
-  putDocument(document);
+  const result = putDocument(document);
+  if (result?.rev) document._rev = result.rev;
+  return toHistory(document);
 }
 
 /**

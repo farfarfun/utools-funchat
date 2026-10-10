@@ -88,6 +88,19 @@ function conversationMessages(): ChatMessage[] {
   return [...presetPrefix(), ...clonePlain(state.messages)];
 }
 
+// loadHistories 会把所有会话文档（连同完整消息与 base64 图片）全部读出来再克隆一遍，
+// 每发一条消息都跑一次的话，几十个带图会话就是每条消息读写好几 MB。改成原地增删。
+function upsertHistory(history: History): void {
+  const index = state.histories.findIndex((item) => item._id === history._id);
+  if (index < 0) state.histories.push(history);
+  else state.histories[index] = history;
+  state.histories.sort((left, right) => right.sortKey - left.sortKey);
+}
+
+function dropHistories(match: (history: History) => boolean): void {
+  state.histories = state.histories.filter((history) => !match(history));
+}
+
 function removeMessage(message: ChatMessage): void {
   const at = state.messages.indexOf(message);
   if (at >= 0) state.messages.splice(at, 1);
@@ -241,7 +254,7 @@ function deleteAgent(agent: Agent): void {
   if (index < 0) return;
   removeAgent(agent._id);
   state.agents.splice(index, 1);
-  state.histories = loadHistories();
+  dropHistories((history) => history.agentId === agent._id);
   if (state.currentAgent?._id !== agent._id) return;
   const next = state.agents[Math.max(0, index - 1)];
   if (next) {
@@ -331,13 +344,12 @@ function persistCurrentConversation(): void {
   state.currentAgent.chatId = id;
   const firstUser = state.messages.find((message) => message.role === 'user');
   const existing = state.histories.find((history) => history._id === id);
-  saveHistory({
+  upsertHistory(saveHistory({
     id,
     title: Array.from(messageText(firstUser)).slice(0, 20).join('') || '新话题',
     messages: conversationMessages(),
     favorite: existing?.isFavorite,
-  });
-  state.histories = loadHistories();
+  }));
   sortAgents();
 }
 
@@ -356,19 +368,18 @@ function openHistory(history: History): void {
 
 function deleteHistory(history: History): void {
   removeHistory(history._id);
-  state.histories = loadHistories();
+  dropHistories((item) => item._id === history._id);
   sortAgents();
   if (state.currentAgent?.chatId === history._id) newConversation();
 }
 
 function toggleFavorite(history: History): void {
-  saveHistory({
+  upsertHistory(saveHistory({
     id: history._id,
     title: history.title || '',
     messages: history.messages,
     favorite: !history.isFavorite,
-  });
-  state.histories = loadHistories();
+  }));
 }
 
 function deleteMessage(index: number): void {

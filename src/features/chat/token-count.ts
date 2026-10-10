@@ -33,11 +33,33 @@ export function estimateTokens(value: MessageLike): number {
   return images + cjkCount + (other ? Math.ceil(new TextEncoder().encode(other).length / 4) : 0);
 }
 
+// 流式回复期间每个 chunk 都会改动最后一条消息，而整段会话的 Token 数是界面上一直显示
+// 的（输入区与标题栏），于是每个 token 都要把所有消息重算一遍。按消息对象缓存结果：
+// content 是字符串时 += 会产生新字符串，恒等比较自然失效，所以只有正在流的那条会重算。
+const tokenCache = new WeakMap<object, { content: unknown; tokens: number }>();
+
 /**
- * 累加会话中全部消息的粗略 Token 数。
+ * 累加会话中全部消息的粗略 Token 数，内容未变的消息直接复用上次结果。
  * @param messages 要估算的消息可迭代对象。
  * @returns 会话总 Token 估算值。
  */
 export function estimateConversationTokens(messages: Iterable<MessageLike>): number {
-  return Array.from(messages, estimateTokens).reduce((total, count) => total + count, 0);
+  let total = 0;
+  for (const message of messages) {
+    if (!message || typeof message !== 'object') {
+      total += estimateTokens(message);
+      continue;
+    }
+    const cached = tokenCache.get(message);
+    // 读 content 同时也把它登记为响应式依赖，内容一变计算属性照样会失效
+    const content = message.content;
+    if (cached && cached.content === content) {
+      total += cached.tokens;
+      continue;
+    }
+    const tokens = estimateTokens(message);
+    tokenCache.set(message, { content, tokens });
+    total += tokens;
+  }
+  return total;
 }
