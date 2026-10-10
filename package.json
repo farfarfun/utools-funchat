@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint . --fix",
+    "lint:check": "eslint . --no-fix --quiet",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {

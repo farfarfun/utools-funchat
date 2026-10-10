@@ -23,6 +23,10 @@ pnpm install --frozen-lockfile
 pnpm test
 # 类型检查已经清零，纳入构建流程防止回归
 pnpm typecheck
+# eslint 的 error 也已清零，同样纳入。--quiet 只看 error：剩下的一千多条 warning 全是
+# .vue 的排版类（每行几个属性、单标签怎么闭合），封个数字没人会去维护。
+# 别在这里用 pnpm lint——它带 --fix，会把全仓 .vue 重排一遍。
+pnpm lint:check
 node --check "$PLUGIN_DIR/preload.js"
 node -e "JSON.parse(require('fs').readFileSync('$PLUGIN_DIR/plugin.json', 'utf8'))"
 rm -rf -- "$PLUGIN_DIR/dist"
