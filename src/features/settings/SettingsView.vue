@@ -7,7 +7,6 @@ import ModelPickerDialog from '../chat/ModelPickerDialog.vue';
 const store = useChatStore();
 const preferences = reactive({
   windowHeight: Number(store.state.settings.windowHeight) || 660,
-  autoSort: store.state.settings.autoSort ?? true,
 });
 const selectedAgents = ref<string[]>([]);
 const modelFilter = ref('');
@@ -58,13 +57,6 @@ function replaceModels() {
           <small>仅在“插件未分离”和“自动分离后宽度最小”的时候生效（为了兼容分离插件后拖动窗口的记忆功能）</small>
         </div>
       </div>
-      <div class="setting-row sort-row">
-        <div class="reference-label">自动排序</div>
-        <div class="reference-body inline-body">
-          <label class="switch"><input v-model="preferences.autoSort" type="checkbox" role="switch" @change="savePreferences"><span></span></label>
-          <small>AI列表是否自动排序，默认-开启，关闭后可通过拖拽调整好友顺序，但失去虚拟列表优化。</small>
-        </div>
-      </div>
     </section>
 
     <section class="reference-card model-card">
@@ -103,11 +95,6 @@ function replaceModels() {
 <style scoped>
 .target-model > .target-browse { position: absolute; top: 0; right: 10px; width: 34px; height: 36px; display: grid; place-items: center; color: var(--color-icon); }
 .target-model > .target-browse:hover { color: var(--color-primary); }
-.switch { position: relative; width: 40px; height: 24px; display: inline-block; flex: 0 0 40px; cursor: pointer; }
-.switch > span { position: absolute; inset: 0; border-radius: 12px; background: var(--color-fill-3); }
-.switch > span::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .2s ease; }
-.switch input:checked + span { background: var(--color-primary); }
-.switch input:checked + span::after { left: 20px; }
 
 .reference-settings { min-width: 0; height: 100%; padding: 20px; flex: 1; overflow-y: auto; background: transparent; line-height: 1.8; }
 .reference-settings { scrollbar-width: none; }
@@ -118,7 +105,6 @@ function replaceModels() {
 .preference-card { height: 159px; flex-direction: column; }
 .setting-row { display: flex; }
 .height-row { height: 58px; margin-bottom: 12px; }
-.sort-row { height: 25px; }
 .height-control { height: 32px; display: flex; align-items: center; gap: 20px; }
 .height-control input[type="range"] { height: 18px; min-width: 200px; flex: 1; appearance: none; background: transparent; }
 .height-control input[type="range"]::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; background: linear-gradient(to right, var(--color-primary) 0 38%, var(--color-border-2) 38% 100%); }

@@ -37,7 +37,6 @@ function saveApiSetup() {
     provider: 'openai',
     apiKey: apiSetup.apiKey.trim(),
     baseUrl: apiSetup.baseUrl.trim(),
-    streamMode: 'client',
   });
 }
 

@@ -19,7 +19,7 @@ const tab = ref('routes');
 const routes = computed(() => store.state.settings.apiRoutes || []);
 const editingId = ref(store.state.settings.activeRouteId || routes.value[0]?.id || '');
 
-const blankRoute = () => ({ id: '', name: '', provider: 'openai', baseUrl: '', apiKey: '', streamMode: 'client', models: [] as string[], modelsFetchedAt: 0 });
+const blankRoute = () => ({ id: '', name: '', provider: 'openai', baseUrl: '', apiKey: '', models: [] as string[], modelsFetchedAt: 0 });
 const draft = reactive(blankRoute());
 const pulling = ref(false);
 const pullError = ref('');
@@ -91,7 +91,6 @@ function saveRoute() {
     provider: draft.provider,
     baseUrl: draft.baseUrl.trim(),
     apiKey: draft.apiKey.trim(),
-    streamMode: draft.streamMode,
     models: draft.models,
     modelsFetchedAt: draft.modelsFetchedAt,
   };
@@ -212,13 +211,6 @@ function rangeStyle(row) {
             <small>若不希望自动拼接 .../chat/completions 后缀，请在地址末尾加 #</small>
           </span>
         </label>
-        <div v-if="draft.provider !== 'utools'" class="form-row stream-row">
-          <span>流解析</span>
-          <div>
-            <label><input v-model="draft.streamMode" type="radio" value="client">插件端解析流（默认）</label>
-            <label><input v-model="draft.streamMode" type="radio" value="server">服务端解析流</label>
-          </div>
-        </div>
         <label v-if="draft.provider !== 'utools'" class="form-row">
           <span>KEY秘钥</span>
           <input v-model="draft.apiKey" type="password" autocomplete="off" placeholder="请复制或输入KEY秘钥（令牌）到这里">
@@ -325,9 +317,6 @@ function rangeStyle(row) {
 .select-control { position: relative; padding: 0; }
 .select-control select { width: 100%; height: 30px; padding: 0 34px 0 13px; appearance: none; border: 0; outline: 0; color: inherit; background: transparent; }
 .select-control i { position: absolute; top: 6px; right: 13px; color: var(--color-icon); font-size: 12px; pointer-events: none; }
-.stream-row > div { height: 32px; display: flex; align-items: center; gap: 20px; }
-.stream-row label { display: flex; align-items: center; gap: 8px; }
-.stream-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
 .api-form footer { height: 32px; margin-top: auto; display: flex; gap: 8px; }
 .api-form footer button { height: 32px; padding: 0 12px; border-radius: 12px; }
 .route-use { background: var(--color-fill-2); }

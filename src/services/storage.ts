@@ -187,7 +187,6 @@ export function routesFromLegacy(legacy: unknown): ApiRoute[] {
       provider: item.value === 200 ? 'utools' : 'openai',
       baseUrl: item.url || '',
       apiKey: item.apiKey || '',
-      streamMode: item.streamMode || 'client',
       wasActive: Boolean(item.isOpen),
     }));
 }
@@ -229,7 +228,6 @@ function ensureRoutes(settings: Settings): Settings {
       provider: settings.provider || 'openai',
       baseUrl: settings.baseUrl || '',
       apiKey: settings.apiKey || '',
-      streamMode: 'client',
     }];
   } else {
     settings.apiRoutes = [];
