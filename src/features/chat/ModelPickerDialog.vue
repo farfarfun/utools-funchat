@@ -137,7 +137,10 @@ defineExpose({ open });
 </template>
 
 <style scoped>
-.model-picker { width: 520px; max-width: 92vw; height: 70vh; max-height: 560px; padding: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--color-border-2); border-radius: 12px; color: var(--color-text-2); background: var(--color-bg-2); box-shadow: 0 12px 32px #00000033; }
+.model-picker { width: 520px; max-width: 92vw; height: 70vh; max-height: 560px; padding: 0; overflow: hidden; border: 1px solid var(--color-border-2); border-radius: 12px; color: var(--color-text-2); background: var(--color-bg-2); box-shadow: 0 12px 32px #00000033; }
+/* display 必须挂在 [open] 上：dialog 的隐藏靠 UA 样式的 dialog:not([open]){display:none}，
+   而作者样式的层叠来源优先级高于 UA，无条件写 display 会让弹窗从一开始就留在页面流里 */
+.model-picker[open] { display: flex; flex-direction: column; }
 .model-picker::backdrop { background: #0000007a; }
 .model-picker header { padding: 16px 20px 12px; display: flex; flex: 0 0 auto; flex-direction: column; gap: 3px; }
 .model-picker header b { color: var(--color-text-1); font-size: 15px; font-weight: 600; }
